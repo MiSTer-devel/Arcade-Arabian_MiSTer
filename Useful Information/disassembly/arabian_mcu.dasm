@@ -1,0 +1,1810 @@
+000: 68 08 JPL   $0008
+002: 69 10 JPL   $0110
+004: 68 A0 JPL   $00A0
+006: 3C    RTI
+007: 00    NOP
+008: 90    LI    #$0
+009: 58    LXI   #$0
+00A: 80    LYI   #$0
+00B: 0A    STIC
+00C: CB    JMP   $000B
+00D: 1B    XX
+00E: 71    AI    #$1
+00F: B8    CI    #$8
+010: E7    JMP   $0027
+011: 59    LXI   #$1
+012: 87    LYI   #$7
+013: 9F    LI    #$F
+014: 1D    ST
+015: 82    LYI   #$2
+016: 24    TSTR
+017: DE    JMP   $001E
+018: 24    TSTR
+019: DE    JMP   $001E
+01A: 3E 8E EN    #$8E
+01C: 68 D3 JPL   $00D3
+01E: 5A    LXI   #$2
+01F: 81    LYI   #$1
+020: 9F    LI    #$F
+021: 1D    ST
+022: 3E 8E EN    #$8E
+024: 69 80 JPL   $0180
+026: FF    JMP   $003F
+027: 1B    XX
+028: CA    JMP   $000A
+029: FF    JMP   $003F
+02A: FF    JMP   $003F
+02B: 58    LXI   #$0
+02C: 8A    LYI   #$A
+02D: 0D    L
+02E: 05    TATH
+02F: 8B    LYI   #$B
+030: 0D    L
+031: 06    TATL
+032: 5A    LXI   #$2
+033: 80    LYI   #$0
+034: 0D    L
+035: 00    NOP
+036: 00    NOP
+037: 00    NOP
+038: 00    NOP
+039: 5F    LXI   #$7
+03A: 4C    TBA   0
+03B: 68 50 JPL   $0050
+03D: 80    LYI   #$0
+03E: 19    DCM
+03F: 68 50 JPL   $0050
+041: 08    ICY
+042: 19    DCM
+043: D0    JMP   $0050
+044: 08    ICY
+045: 19    DCM
+046: D0    JMP   $0050
+047: 08    ICY
+048: 19    DCM
+049: D0    JMP   $0050
+04A: 5A    LXI   #$2
+04B: 80    LYI   #$0
+04C: 34    RBIT  0
+04D: 5F    LXI   #$7
+04E: 00    NOP
+04F: 00    NOP
+050: 4D    TBA   1
+051: E7    JMP   $0067
+052: 84    LYI   #$4
+053: 19    DCM
+054: E7    JMP   $0067
+055: 08    ICY
+056: 19    DCM
+057: E7    JMP   $0067
+058: 08    ICY
+059: 19    DCM
+05A: E7    JMP   $0067
+05B: 08    ICY
+05C: 19    DCM
+05D: E7    JMP   $0067
+05E: 5A    LXI   #$2
+05F: 80    LYI   #$0
+060: 35    RBIT  1
+061: 5F    LXI   #$7
+062: 00    NOP
+063: 00    NOP
+064: 00    NOP
+065: 00    NOP
+066: 00    NOP
+067: 4E    TBA   2
+068: 68 83 JPL   $0083
+06A: 88    LYI   #$8
+06B: 19    DCM
+06C: 68 83 JPL   $0083
+06E: 08    ICY
+06F: 19    DCM
+070: 68 83 JPL   $0083
+072: 08    ICY
+073: 19    DCM
+074: 68 83 JPL   $0083
+076: 08    ICY
+077: 19    DCM
+078: 68 83 JPL   $0083
+07A: 5A    LXI   #$2
+07B: 80    LYI   #$0
+07C: 36    RBIT  2
+07D: 5F    LXI   #$7
+07E: 00    NOP
+07F: 00    NOP
+080: 00    NOP
+081: 00    NOP
+082: 00    NOP
+083: 4F    TBA   3
+084: DA    JMP   $009A
+085: 8C    LYI   #$C
+086: 19    DCM
+087: DA    JMP   $009A
+088: 08    ICY
+089: 19    DCM
+08A: DA    JMP   $009A
+08B: 08    ICY
+08C: 19    DCM
+08D: DA    JMP   $009A
+08E: 08    ICY
+08F: 19    DCM
+090: DA    JMP   $009A
+091: 5A    LXI   #$2
+092: 80    LYI   #$0
+093: 37    RBIT  3
+094: 00    NOP
+095: 00    NOP
+096: 00    NOP
+097: 00    NOP
+098: 00    NOP
+099: 00    NOP
+09A: 50    XD    0
+09B: 1B    XX
+09C: 51    XD    1
+09D: 54    XYD   4
+09E: 3C    RTI
+09F: FF    JMP   $00BF
+0A0: 54    XYD   4
+0A1: 51    XD    1
+0A2: 1B    XX
+0A3: 50    XD    0
+0A4: 68 2B JPL   $002B
+0A6: FF    JMP   $00BF
+0A7: FF    JMP   $00BF
+0A8: FF    JMP   $00BF
+0A9: FF    JMP   $00BF
+0AA: FF    JMP   $00BF
+0AB: FF    JMP   $00BF
+0AC: FF    JMP   $00BF
+0AD: FF    JMP   $00BF
+0AE: FF    JMP   $00BF
+0AF: FF    JMP   $00BF
+0B0: FF    JMP   $00BF
+0B1: FF    JMP   $00BF
+0B2: FF    JMP   $00BF
+0B3: FF    JMP   $00BF
+0B4: FF    JMP   $00BF
+0B5: FF    JMP   $00BF
+0B6: FF    JMP   $00BF
+0B7: FF    JMP   $00BF
+0B8: FF    JMP   $00BF
+0B9: FF    JMP   $00BF
+0BA: FF    JMP   $00BF
+0BB: FF    JMP   $00BF
+0BC: FF    JMP   $00BF
+0BD: FF    JMP   $00BF
+0BE: FF    JMP   $00BF
+0BF: FF    JMP   $00FF
+0C0: 59    LXI   #$1
+0C1: 86    LYI   #$6
+0C2: 38    TBIT  0
+0C3: F9    JMP   $00F9
+0C4: D2    JMP   $00D2
+0C5: 95    LI    #$5
+0C6: 0A    STIC
+0C7: 08    ICY
+0C8: 97    LI    #$7
+0C9: 0A    STIC
+0CA: 9F    LI    #$F
+0CB: 0A    STIC
+0CC: 90    LI    #$0
+0CD: 1D    ST
+0CE: 81    LYI   #$1
+0CF: 55    XYD   5
+0D0: 80    LYI   #$0
+0D1: 56    XYD   6
+0D2: F7    JMP   $00F7
+0D3: 5A    LXI   #$2
+0D4: 81    LYI   #$1
+0D5: 91    LI    #$1
+0D6: 1D    ST
+0D7: FB    JMP   $00FB
+0D8: 3A    TBIT  2
+0D9: E8    JMP   $00E8
+0DA: 36    RBIT  2
+0DB: 59    LXI   #$1
+0DC: 86    LYI   #$6
+0DD: 33    SBIT  3
+0DE: 65 60 CALL  $0560
+0E0: 58    LXI   #$0
+0E1: 8D    LYI   #$D
+0E2: 90    LI    #$0
+0E3: 0A    STIC
+0E4: 0A    STIC
+0E5: 1D    ST
+0E6: 69 80 JPL   $0180
+0E8: 61 52 CALL  $0152
+0EA: 61 21 CALL  $0121
+0EC: 5A    LXI   #$2
+0ED: 81    LYI   #$1
+0EE: 92    LI    #$2
+0EF: 69 1C JPL   $011C
+0F1: 3A    TBIT  2
+0F2: F4    JMP   $00F4
+0F3: DA    JMP   $00DA
+0F4: 61 40 CALL  $0140
+0F6: D3    JMP   $00D3
+0F7: 6C 98 JPL   $0498
+0F9: 8B    LYI   #$B
+0FA: C5    JMP   $00C5
+0FB: 59    LXI   #$1
+0FC: 86    LYI   #$6
+0FD: D8    JMP   $00D8
+0FE: FF    JMP   $00FF
+0FF: FF    JMP   $013F
+100: FF    JMP   $013F
+101: FF    JMP   $013F
+102: FF    JMP   $013F
+103: FF    JMP   $013F
+104: FF    JMP   $013F
+105: FF    JMP   $013F
+106: FF    JMP   $013F
+107: FF    JMP   $013F
+108: FF    JMP   $013F
+109: FF    JMP   $013F
+10A: FF    JMP   $013F
+10B: FF    JMP   $013F
+10C: FF    JMP   $013F
+10D: FF    JMP   $013F
+10E: FF    JMP   $013F
+10F: FF    JMP   $013F
+110: 54    XYD   4
+111: 51    XD    1
+112: 1B    XX
+113: 50    XD    0
+114: 59    LXI   #$1
+115: 86    LYI   #$6
+116: 32    SBIT  2
+117: 50    XD    0
+118: 1B    XX
+119: 51    XD    1
+11A: 54    XYD   4
+11B: 3C    RTI
+11C: 1D    ST
+11D: 59    LXI   #$1
+11E: 86    LYI   #$6
+11F: 68 F1 JPL   $00F1
+121: 97    LI    #$7
+122: 23    RSTC
+123: 01    OUTO
+124: 9F    LI    #$F
+125: 21    SETC
+126: 01    OUTO
+127: 97    LI    #$7
+128: 02    OUTP
+129: 59    LXI   #$1
+12A: 8C    LYI   #$C
+12B: 44    RSTD  0
+12C: 12    INK
+12D: 40    SETD  0
+12E: 1D    ST
+12F: 44    RSTD  0
+130: 12    INK
+131: 40    SETD  0
+132: 2E    C
+133: EB    JMP   $012B
+134: 52    XD    2
+135: 98    LI    #$8
+136: 23    RSTC
+137: 01    OUTO
+138: 52    XD    2
+139: 83    LYI   #$3
+13A: 03    OUT
+13B: 45    RSTD  1
+13C: 41    SETD  1
+13D: 68 C0 JPL   $00C0
+13F: FF    JMP   $017F
+140: 59    LXI   #$1
+141: 86    LYI   #$6
+142: 39    TBIT  1
+143: C6    JMP   $0146
+144: 47    RSTD  3
+145: 2C    RTS
+146: 43    SETD  3
+147: 2C    RTS
+148: 03    OUT
+149: 57    XYD   7
+14A: 12    INK
+14B: 1D    ST
+14C: 12    INK
+14D: 2E    C
+14E: CA    JMP   $014A
+14F: 0A    STIC
+150: 57    XYD   7
+151: 2C    RTS
+152: 59    LXI   #$1
+153: 81    LYI   #$1
+154: 57    XYD   7
+155: F8    JMP   $0178
+156: 61 48 CALL  $0148
+158: 9D    LI    #$D
+159: 61 48 CALL  $0148
+15B: 9B    LI    #$B
+15C: 61 48 CALL  $0148
+15E: 97    LI    #$7
+15F: 61 48 CALL  $0148
+161: 9F    LI    #$F
+162: 03    OUT
+163: 87    LYI   #$7
+164: 34    RBIT  0
+165: 31    SBIT  1
+166: 0D    L
+167: 82    LYI   #$2
+168: 61 48 CALL  $0148
+16A: 00    NOP
+16B: 87    LYI   #$7
+16C: 30    SBIT  0
+16D: 35    RBIT  1
+16E: 0D    L
+16F: 31    SBIT  1
+170: 82    LYI   #$2
+171: 61 48 CALL  $0148
+173: 87    LYI   #$7
+174: 0D    L
+175: 82    LYI   #$2
+176: 03    OUT
+177: 2C    RTS
+178: 80    LYI   #$0
+179: 57    XYD   7
+17A: 9E    LI    #$E
+17B: D6    JMP   $0156
+17C: FF    JMP   $017F
+17D: FF    JMP   $017F
+17E: FF    JMP   $017F
+17F: FF    JMP   $01BF
+180: 58    LXI   #$0
+181: 89    LYI   #$9
+182: 30    SBIT  0
+183: 61 87 CALL  $0187
+185: 3D 07 JPA   #$07
+187: 61 93 CALL  $0193
+189: 58    LXI   #$0
+18A: 8F    LYI   #$F
+18B: 09    ICM
+18C: D2    JMP   $0192
+18D: 8E    LYI   #$E
+18E: 09    ICM
+18F: D2    JMP   $0192
+190: 8D    LYI   #$D
+191: 09    ICM
+192: 2C    RTS
+193: 58    LXI   #$0
+194: 8F    LYI   #$F
+195: 0D    L
+196: 23    RSTC
+197: 01    OUTO
+198: 8E    LYI   #$E
+199: 0D    L
+19A: 21    SETC
+19B: 01    OUTO
+19C: 8D    LYI   #$D
+19D: 0D    L
+19E: 02    OUTP
+19F: 8C    LYI   #$C
+1A0: 44    RSTD  0
+1A1: 12    INK
+1A2: 40    SETD  0
+1A3: 1D    ST
+1A4: 44    RSTD  0
+1A5: 12    INK
+1A6: 40    SETD  0
+1A7: 2E    C
+1A8: E0    JMP   $01A0
+1A9: 2C    RTS
+1AA: FF    JMP   $01BF
+1AB: FF    JMP   $01BF
+1AC: FF    JMP   $01BF
+1AD: FF    JMP   $01BF
+1AE: FF    JMP   $01BF
+1AF: FF    JMP   $01BF
+1B0: FF    JMP   $01BF
+1B1: FF    JMP   $01BF
+1B2: FF    JMP   $01BF
+1B3: FF    JMP   $01BF
+1B4: FF    JMP   $01BF
+1B5: FF    JMP   $01BF
+1B6: FF    JMP   $01BF
+1B7: FF    JMP   $01BF
+1B8: FF    JMP   $01BF
+1B9: FF    JMP   $01BF
+1BA: FF    JMP   $01BF
+1BB: FF    JMP   $01BF
+1BC: FF    JMP   $01BF
+1BD: FF    JMP   $01BF
+1BE: FF    JMP   $01BF
+1BF: FF    JMP   $01FF
+1C0: 69 80 JPL   $0180
+1C2: 00    NOP
+1C3: 00    NOP
+1C4: 62 80 CALL  $0280
+1C6: 69 83 JPL   $0183
+1C8: 62 A4 CALL  $02A4
+1CA: 69 80 JPL   $0180
+1CC: 62 A9 CALL  $02A9
+1CE: 69 80 JPL   $0180
+1D0: 62 AF CALL  $02AF
+1D2: 69 83 JPL   $0183
+1D4: 62 D2 CALL  $02D2
+1D6: 69 80 JPL   $0180
+1D8: 62 D7 CALL  $02D7
+1DA: 69 80 JPL   $0180
+1DC: 63 C0 CALL  $03C0
+1DE: 69 83 JPL   $0183
+1E0: 62 99 CALL  $0299
+1E2: 69 83 JPL   $0183
+1E4: 62 9C CALL  $029C
+1E6: 69 83 JPL   $0183
+1E8: 62 DC CALL  $02DC
+1EA: 69 80 JPL   $0180
+1EC: 64 DF CALL  $04DF
+1EE: 69 83 JPL   $0183
+1F0: 64 EE CALL  $04EE
+1F2: 69 83 JPL   $0183
+1F4: 61 87 CALL  $0187
+1F6: 3D 08 JPA   #$08
+1F8: 61 87 CALL  $0187
+1FA: 3D 09 JPA   #$09
+1FC: 61 87 CALL  $0187
+1FE: 6C 00 JPL   $0400
+200: 62 CD CALL  $02CD
+202: 69 80 JPL   $0180
+204: 63 63 CALL  $0363
+206: 69 83 JPL   $0183
+208: 63 97 CALL  $0397
+20A: 69 83 JPL   $0183
+20C: 63 61 CALL  $0361
+20E: 69 83 JPL   $0183
+210: 62 C0 CALL  $02C0
+212: 69 80 JPL   $0180
+214: 63 54 CALL  $0354
+216: 69 83 JPL   $0183
+218: 63 A4 CALL  $03A4
+21A: 69 83 JPL   $0183
+21C: 62 C5 CALL  $02C5
+21E: 69 80 JPL   $0180
+220: 65 20 CALL  $0520
+222: 69 83 JPL   $0183
+224: 62 87 CALL  $0287
+226: 69 83 JPL   $0183
+228: 63 3A CALL  $033A
+22A: 69 80 JPL   $0180
+22C: 63 36 CALL  $0336
+22E: 69 80 JPL   $0180
+230: 63 15 CALL  $0315
+232: 69 80 JPL   $0180
+234: 63 1D CALL  $031D
+236: 69 80 JPL   $0180
+238: 63 1F CALL  $031F
+23A: 69 80 JPL   $0180
+23C: 63 21 CALL  $0321
+23E: 69 80 JPL   $0180
+240: 62 BA CALL  $02BA
+242: 69 80 JPL   $0180
+244: 63 6F CALL  $036F
+246: 69 83 JPL   $0183
+248: 63 9F CALL  $039F
+24A: 69 83 JPL   $0183
+24C: 63 6D CALL  $036D
+24E: 69 83 JPL   $0183
+250: 63 73 CALL  $0373
+252: 69 80 JPL   $0180
+254: 63 47 CALL  $0347
+256: 69 83 JPL   $0183
+258: 63 AF CALL  $03AF
+25A: 69 83 JPL   $0183
+25C: 63 90 CALL  $0390
+25E: 69 80 JPL   $0180
+260: 65 28 CALL  $0528
+262: 69 83 JPL   $0183
+264: 64 08 CALL  $0408
+266: 69 83 JPL   $0183
+268: 63 80 CALL  $0380
+26A: 69 80 JPL   $0180
+26C: 63 84 CALL  $0384
+26E: 69 80 JPL   $0180
+270: 65 57 CALL  $0557
+272: 69 83 JPL   $0183
+274: 65 80 CALL  $0580
+276: 69 80 JPL   $0180
+278: 65 A2 CALL  $05A2
+27A: 69 80 JPL   $0180
+27C: 68 08 JPL   $0008
+27E: 00    NOP
+27F: 00    NOP
+280: 61 87 CALL  $0187
+282: 4F    TBA   3
+283: D2    JMP   $0292
+284: 6B 00 JPL   $0300
+286: FF    JMP   $02BF
+287: 63 2B CALL  $032B
+289: 0D    L
+28A: 58    LXI   #$0
+28B: 88    LYI   #$8
+28C: 0B    X
+28D: 2E    C
+28E: 6D 14 JPL   $0514
+290: 6D 0A JPL   $050A
+292: 04    TAY
+293: 55    XYD   5
+294: 58    LXI   #$0
+295: 89    LYI   #$9
+296: 30    SBIT  0
+297: 2C    RTS
+298: FF    JMP   $02BF
+299: 61 87 CALL  $0187
+29B: CA    JMP   $028A
+29C: 61 87 CALL  $0187
+29E: 58    LXI   #$0
+29F: 86    LYI   #$6
+2A0: CC    JMP   $028C
+2A1: FF    JMP   $02BF
+2A2: FF    JMP   $02BF
+2A3: FF    JMP   $02BF
+2A4: 61 87 CALL  $0187
+2A6: 04    TAY
+2A7: 56    XYD   6
+2A8: 2C    RTS
+2A9: 61 87 CALL  $0187
+2AB: 58    LXI   #$0
+2AC: 88    LYI   #$8
+2AD: 1D    ST
+2AE: 2C    RTS
+2AF: 61 87 CALL  $0187
+2B1: 58    LXI   #$0
+2B2: 88    LYI   #$8
+2B3: 0B    X
+2B4: 23    RSTC
+2B5: 0E    ADC
+2B6: 6D 05 JPL   $0505
+2B8: 6D 00 JPL   $0500
+2BA: 56    XYD   6
+2BB: 14    TYA
+2BC: 56    XYD   6
+2BD: EB    JMP   $02AB
+2BE: FF    JMP   $02BF
+2BF: FF    JMP   $02FF
+2C0: 63 2B CALL  $032B
+2C2: 0D    L
+2C3: 6A AB JPL   $02AB
+2C5: 58    LXI   #$0
+2C6: 88    LYI   #$8
+2C7: 0D    L
+2C8: 63 2B CALL  $032B
+2CA: 0B    X
+2CB: 6A AB JPL   $02AB
+2CD: 58    LXI   #$0
+2CE: 88    LYI   #$8
+2CF: 0D    L
+2D0: 6A FC JPL   $02FC
+2D2: 61 87 CALL  $0187
+2D4: 04    TAY
+2D5: 20    SETR
+2D6: 2C    RTS
+2D7: 61 87 CALL  $0187
+2D9: 04    TAY
+2DA: 22    RSTR
+2DB: 2C    RTS
+2DC: 61 87 CALL  $0187
+2DE: 58    LXI   #$0
+2DF: 89    LYI   #$9
+2E0: 38    TBIT  0
+2E1: 6B 07 JPL   $0307
+2E3: 00    NOP
+2E4: 5A    LXI   #$2
+2E5: 8D    LYI   #$D
+2E6: 1D    ST
+2E7: 61 87 CALL  $0187
+2E9: 5A    LXI   #$2
+2EA: 8E    LYI   #$E
+2EB: 1D    ST
+2EC: 61 87 CALL  $0187
+2EE: 58    LXI   #$0
+2EF: 8F    LYI   #$F
+2F0: 1D    ST
+2F1: 5A    LXI   #$2
+2F2: 8E    LYI   #$E
+2F3: 0D    L
+2F4: 58    LXI   #$0
+2F5: 1D    ST
+2F6: 5A    LXI   #$2
+2F7: 8D    LYI   #$D
+2F8: 0D    L
+2F9: 58    LXI   #$0
+2FA: 1D    ST
+2FB: 2C    RTS
+2FC: 86    LYI   #$6
+2FD: 1D    ST
+2FE: 2C    RTS
+2FF: FF    JMP   $033F
+300: 0C    ROL
+301: 23    RSTC
+302: 1C    ROR
+303: 58    LXI   #$0
+304: 85    LYI   #$5
+305: 6A 8C JPL   $028C
+307: 61 89 CALL  $0189
+309: 61 89 CALL  $0189
+30B: 2C    RTS
+30C: FF    JMP   $033F
+30D: FF    JMP   $033F
+30E: FF    JMP   $033F
+30F: FF    JMP   $033F
+310: FF    JMP   $033F
+311: FF    JMP   $033F
+312: FF    JMP   $033F
+313: FF    JMP   $033F
+314: FF    JMP   $033F
+315: 80    LYI   #$0
+316: 57    XYD   7
+317: 58    LXI   #$0
+318: 88    LYI   #$8
+319: 0D    L
+31A: 57    XYD   7
+31B: 03    OUT
+31C: 2C    RTS
+31D: 81    LYI   #$1
+31E: D6    JMP   $0316
+31F: 82    LYI   #$2
+320: D6    JMP   $0316
+321: 83    LYI   #$3
+322: D6    JMP   $0316
+323: 58    LXI   #$0
+324: 89    LYI   #$9
+325: 39    TBIT  1
+326: E9    JMP   $0329
+327: 21    SETC
+328: 2C    RTS
+329: 23    RSTC
+32A: 2C    RTS
+32B: 52    XD    2
+32C: 55    XYD   5
+32D: 14    TYA
+32E: 55    XYD   5
+32F: 1B    XX
+330: 56    XYD   6
+331: 14    TYA
+332: 56    XYD   6
+333: 04    TAY
+334: 52    XD    2
+335: 2C    RTS
+336: 61 87 CALL  $0187
+338: 8B    LYI   #$B
+339: FD    JMP   $033D
+33A: 61 87 CALL  $0187
+33C: 8A    LYI   #$A
+33D: 58    LXI   #$0
+33E: 1D    ST
+33F: 2C    RTS
+340: FF    JMP   $037F
+341: FF    JMP   $037F
+342: FF    JMP   $037F
+343: FF    JMP   $037F
+344: FF    JMP   $037F
+345: FF    JMP   $037F
+346: FF    JMP   $037F
+347: 63 2B CALL  $032B
+349: 0D    L
+34A: 63 23 CALL  $0323
+34C: 58    LXI   #$0
+34D: 88    LYI   #$8
+34E: 0B    X
+34F: 1E    SBC
+350: 6D 05 JPL   $0505
+352: 6D 00 JPL   $0500
+354: 63 2B CALL  $032B
+356: 0D    L
+357: 63 23 CALL  $0323
+359: 58    LXI   #$0
+35A: 88    LYI   #$8
+35B: 0B    X
+35C: 0E    ADC
+35D: 6D 05 JPL   $0505
+35F: 6D 00 JPL   $0500
+361: 63 73 CALL  $0373
+363: 56    XYD   6
+364: 08    ICY
+365: FA    JMP   $037A
+366: 56    XYD   6
+367: 58    LXI   #$0
+368: 89    LYI   #$9
+369: 34    RBIT  0
+36A: 2C    RTS
+36B: FF    JMP   $037F
+36C: FF    JMP   $037F
+36D: 63 73 CALL  $0373
+36F: 56    XYD   6
+370: 18    DCY
+371: FA    JMP   $037A
+372: E6    JMP   $0366
+373: 58    LXI   #$0
+374: 88    LYI   #$8
+375: 0D    L
+376: 63 2B CALL  $032B
+378: 1D    ST
+379: 2C    RTS
+37A: 56    XYD   6
+37B: 58    LXI   #$0
+37C: 89    LYI   #$9
+37D: 30    SBIT  0
+37E: 2C    RTS
+37F: FF    JMP   $03BF
+380: 58    LXI   #$0
+381: 89    LYI   #$9
+382: 31    SBIT  1
+383: 2C    RTS
+384: 58    LXI   #$0
+385: 89    LYI   #$9
+386: 35    RBIT  1
+387: 2C    RTS
+388: 0B    X
+389: DE    JMP   $039E
+38A: 0B    X
+38B: DB    JMP   $039B
+38C: FF    JMP   $03BF
+38D: FF    JMP   $03BF
+38E: FF    JMP   $03BF
+38F: FF    JMP   $03BF
+390: 55    XYD   5
+391: 14    TYA
+392: 88    LYI   #$8
+393: 58    LXI   #$0
+394: 0B    X
+395: 6A 92 JPL   $0292
+397: 63 2B CALL  $032B
+399: 09    ICM
+39A: DE    JMP   $039E
+39B: 58    LXI   #$0
+39C: 89    LYI   #$9
+39D: FA    JMP   $03BA
+39E: FC    JMP   $03BC
+39F: 63 2B CALL  $032B
+3A1: 19    DCM
+3A2: DE    JMP   $039E
+3A3: DB    JMP   $039B
+3A4: 63 2B CALL  $032B
+3A6: 0D    L
+3A7: 58    LXI   #$0
+3A8: 88    LYI   #$8
+3A9: 0B    X
+3AA: 0F    AND
+3AB: 6B 88 JPL   $0388
+3AD: 6B 8A JPL   $038A
+3AF: 63 2B CALL  $032B
+3B1: 0D    L
+3B2: 58    LXI   #$0
+3B3: 88    LYI   #$8
+3B4: 0B    X
+3B5: 1F    OR
+3B6: 6B 88 JPL   $0388
+3B8: 6B 8A JPL   $038A
+3BA: 34    RBIT  0
+3BB: 2C    RTS
+3BC: 58    LXI   #$0
+3BD: 89    LYI   #$9
+3BE: 30    SBIT  0
+3BF: 2C    RTS
+3C0: 61 87 CALL  $0187
+3C2: 4F    TBA   3
+3C3: 6C 15 JPL   $0415
+3C5: 4E    TBA   2
+3C6: D3    JMP   $03D3
+3C7: 58    LXI   #$0
+3C8: 88    LYI   #$8
+3C9: 4D    TBA   1
+3CA: D6    JMP   $03D6
+3CB: 4C    TBA   0
+3CC: DB    JMP   $03DB
+3CD: 3B    TBIT  3
+3CE: FE    JMP   $03FE
+3CF: 58    LXI   #$0
+3D0: 89    LYI   #$9
+3D1: 34    RBIT  0
+3D2: 2C    RTS
+3D3: 63 2B CALL  $032B
+3D5: C9    JMP   $03C9
+3D6: 4C    TBA   0
+3D7: DE    JMP   $03DE
+3D8: 39    TBIT  1
+3D9: FE    JMP   $03FE
+3DA: CF    JMP   $03CF
+3DB: 3A    TBIT  2
+3DC: FE    JMP   $03FE
+3DD: CF    JMP   $03CF
+3DE: 38    TBIT  0
+3DF: FE    JMP   $03FE
+3E0: CF    JMP   $03CF
+3E1: 4D    TBA   1
+3E2: F1    JMP   $03F1
+3E3: 4C    TBA   0
+3E4: EB    JMP   $03EB
+3E5: 4E    TBA   2
+3E6: E9    JMP   $03E9
+3E7: 37    RBIT  3
+3E8: FE    JMP   $03FE
+3E9: 33    SBIT  3
+3EA: FE    JMP   $03FE
+3EB: 4E    TBA   2
+3EC: EF    JMP   $03EF
+3ED: 36    RBIT  2
+3EE: FE    JMP   $03FE
+3EF: 32    SBIT  2
+3F0: FE    JMP   $03FE
+3F1: 4C    TBA   0
+3F2: F7    JMP   $03F7
+3F3: 4E    TBA   2
+3F4: FD    JMP   $03FD
+3F5: 35    RBIT  1
+3F6: FE    JMP   $03FE
+3F7: 4E    TBA   2
+3F8: FB    JMP   $03FB
+3F9: 34    RBIT  0
+3FA: FE    JMP   $03FE
+3FB: 30    SBIT  0
+3FC: FE    JMP   $03FE
+3FD: 31    SBIT  1
+3FE: 6C 19 JPL   $0419
+400: 4F    TBA   3
+401: C4    JMP   $0404
+402: 3D 10 JPA   #$10
+404: 65 40 CALL  $0540
+406: 69 80 JPL   $0180
+408: 63 2B CALL  $032B
+40A: 0D    L
+40B: 58    LXI   #$0
+40C: 88    LYI   #$8
+40D: 0B    X
+40E: 2F    EOR
+40F: 6B 88 JPL   $0388
+411: 6B 8A JPL   $038A
+413: FF    JMP   $043F
+414: FF    JMP   $043F
+415: 63 2B CALL  $032B
+417: 6B E1 JPL   $03E1
+419: 58    LXI   #$0
+41A: 89    LYI   #$9
+41B: 30    SBIT  0
+41C: 2C    RTS
+41D: FF    JMP   $043F
+41E: FF    JMP   $043F
+41F: FF    JMP   $043F
+420: 64 84 CALL  $0484
+422: 69 80 JPL   $0180
+424: 64 98 CALL  $0498
+426: 69 80 JPL   $0180
+428: 61 52 CALL  $0152
+42A: 69 80 JPL   $0180
+42C: 64 D7 CALL  $04D7
+42E: 69 83 JPL   $0183
+430: 64 4A CALL  $044A
+432: 69 83 JPL   $0183
+434: 64 54 CALL  $0454
+436: 69 83 JPL   $0183
+438: 64 5E CALL  $045E
+43A: 69 80 JPL   $0180
+43C: 6C C0 JPL   $04C0
+43E: 00    NOP
+43F: 00    NOP
+440: FF    JMP   $047F
+441: FF    JMP   $047F
+442: FF    JMP   $047F
+443: FF    JMP   $047F
+444: FF    JMP   $047F
+445: FF    JMP   $047F
+446: FF    JMP   $047F
+447: FF    JMP   $047F
+448: FF    JMP   $047F
+449: FF    JMP   $047F
+44A: 63 23 CALL  $0323
+44C: 58    LXI   #$0
+44D: 88    LYI   #$8
+44E: 0D    L
+44F: 10    DAA
+450: 6D 05 JPL   $0505
+452: 6D 00 JPL   $0500
+454: 63 23 CALL  $0323
+456: 58    LXI   #$0
+457: 88    LYI   #$8
+458: 0D    L
+459: 11    DAS
+45A: 6D 05 JPL   $0505
+45C: 6D 00 JPL   $0500
+45E: 59    LXI   #$1
+45F: 88    LYI   #$8
+460: 0D    L
+461: 58    LXI   #$0
+462: 8D    LYI   #$D
+463: 1D    ST
+464: 59    LXI   #$1
+465: 89    LYI   #$9
+466: 0D    L
+467: 58    LXI   #$0
+468: 8E    LYI   #$E
+469: 1D    ST
+46A: 59    LXI   #$1
+46B: 8A    LYI   #$A
+46C: 0D    L
+46D: 58    LXI   #$0
+46E: 8F    LYI   #$F
+46F: 1D    ST
+470: 61 89 CALL  $0189
+472: 61 89 CALL  $0189
+474: 2C    RTS
+475: FF    JMP   $047F
+476: FF    JMP   $047F
+477: FF    JMP   $047F
+478: FF    JMP   $047F
+479: FF    JMP   $047F
+47A: FF    JMP   $047F
+47B: FF    JMP   $047F
+47C: FF    JMP   $047F
+47D: FF    JMP   $047F
+47E: FF    JMP   $047F
+47F: FF    JMP   $04BF
+480: FF    JMP   $04BF
+481: FF    JMP   $04BF
+482: FF    JMP   $04BF
+483: FF    JMP   $04BF
+484: F4    JMP   $04B4
+485: 61 94 CALL  $0194
+487: 00    NOP
+488: 00    NOP
+489: 00    NOP
+48A: 61 8A CALL  $018A
+48C: 63 2B CALL  $032B
+48E: 0A    STIC
+48F: 56    XYD   6
+490: 59    LXI   #$1
+491: 8B    LYI   #$B
+492: 0D    L
+493: 7F    AI    #$F
+494: F8    JMP   $04B8
+495: 1D    ST
+496: F6    JMP   $04B6
+497: 3C    RTI
+498: EF    JMP   $04AF
+499: 00    NOP
+49A: 0D    L
+49B: 08    ICY
+49C: 56    XYD   6
+49D: 52    XD    2
+49E: 59    LXI   #$1
+49F: 61 94 CALL  $0194
+4A1: 52    XD    2
+4A2: 83    LYI   #$3
+4A3: 03    OUT
+4A4: 45    RSTD  1
+4A5: 41    SETD  1
+4A6: 61 8A CALL  $018A
+4A8: 59    LXI   #$1
+4A9: 8B    LYI   #$B
+4AA: 0D    L
+4AB: 7F    AI    #$F
+4AC: F8    JMP   $04B8
+4AD: 1D    ST
+4AE: F1    JMP   $04B1
+4AF: 66 00 CALL  $0600
+4B1: 63 2B CALL  $032B
+4B3: DA    JMP   $049A
+4B4: 66 00 CALL  $0600
+4B6: 59    LXI   #$1
+4B7: C5    JMP   $0485
+4B8: 6E 20 JPL   $0620
+4BA: FF    JMP   $04BF
+4BB: FF    JMP   $04BF
+4BC: FF    JMP   $04BF
+4BD: FF    JMP   $04BF
+4BE: FF    JMP   $04BF
+4BF: FF    JMP   $04FF
+4C0: 59    LXI   #$1
+4C1: 86    LYI   #$6
+4C2: 37    RBIT  3
+4C3: 65 6E CALL  $056E
+4C5: 5A    LXI   #$2
+4C6: 81    LYI   #$1
+4C7: 91    LI    #$1
+4C8: 2E    C
+4C9: CC    JMP   $04CC
+4CA: 68 E8 JPL   $00E8
+4CC: 92    LI    #$2
+4CD: 2E    C
+4CE: 68 08 JPL   $0008
+4D0: 68 F4 JPL   $00F4
+4D2: FF    JMP   $04FF
+4D3: FF    JMP   $04FF
+4D4: FF    JMP   $04FF
+4D5: FF    JMP   $04FF
+4D6: FF    JMP   $04FF
+4D7: 58    LXI   #$0
+4D8: 88    LYI   #$8
+4D9: 0D    L
+4DA: 2D    NEG
+4DB: F9    JMP   $04F9
+4DC: 63 9B CALL  $039B
+4DE: F5    JMP   $04F5
+4DF: 61 87 CALL  $0187
+4E1: 63 2B CALL  $032B
+4E3: 0F    AND
+4E4: EA    JMP   $04EA
+4E5: 58    LXI   #$0
+4E6: 88    LYI   #$8
+4E7: 1D    ST
+4E8: 6B 9B JPL   $039B
+4EA: 58    LXI   #$0
+4EB: 88    LYI   #$8
+4EC: 1D    ST
+4ED: FC    JMP   $04FC
+4EE: 61 87 CALL  $0187
+4F0: 63 2B CALL  $032B
+4F2: 1F    OR
+4F3: EA    JMP   $04EA
+4F4: E5    JMP   $04E5
+4F5: 58    LXI   #$0
+4F6: 88    LYI   #$8
+4F7: 1D    ST
+4F8: 2C    RTS
+4F9: 63 9E CALL  $039E
+4FB: F5    JMP   $04F5
+4FC: 6B 9E JPL   $039E
+4FE: FF    JMP   $04FF
+4FF: FF    JMP   $053F
+500: 0B    X
+501: 89    LYI   #$9
+502: 34    RBIT  0
+503: 31    SBIT  1
+504: 2C    RTS
+505: 0B    X
+506: 89    LYI   #$9
+507: 30    SBIT  0
+508: 35    RBIT  1
+509: 2C    RTS
+50A: 0B    X
+50B: 58    LXI   #$0
+50C: 89    LYI   #$9
+50D: 34    RBIT  0
+50E: 28    TSTC
+50F: D2    JMP   $0512
+510: 31    SBIT  1
+511: 2C    RTS
+512: 35    RBIT  1
+513: 2C    RTS
+514: 0B    X
+515: 58    LXI   #$0
+516: 89    LYI   #$9
+517: 30    SBIT  0
+518: CE    JMP   $050E
+519: FF    JMP   $053F
+51A: FF    JMP   $053F
+51B: FF    JMP   $053F
+51C: FF    JMP   $053F
+51D: FF    JMP   $053F
+51E: FF    JMP   $053F
+51F: FF    JMP   $053F
+520: 63 23 CALL  $0323
+522: 58    LXI   #$0
+523: 88    LYI   #$8
+524: 0B    X
+525: 0C    ROL
+526: C5    JMP   $0505
+527: C0    JMP   $0500
+528: 63 23 CALL  $0323
+52A: 58    LXI   #$0
+52B: 88    LYI   #$8
+52C: 0B    X
+52D: 1C    ROR
+52E: C5    JMP   $0505
+52F: C0    JMP   $0500
+530: FF    JMP   $053F
+531: FF    JMP   $053F
+532: FF    JMP   $053F
+533: FF    JMP   $053F
+534: FF    JMP   $053F
+535: FF    JMP   $053F
+536: FF    JMP   $053F
+537: FF    JMP   $053F
+538: FF    JMP   $053F
+539: FF    JMP   $053F
+53A: FF    JMP   $053F
+53B: FF    JMP   $053F
+53C: FF    JMP   $053F
+53D: FF    JMP   $053F
+53E: FF    JMP   $053F
+53F: FF    JMP   $057F
+540: 07    TAS
+541: 58    LXI   #$0
+542: 8D    LYI   #$D
+543: 0D    L
+544: 59    LXI   #$1
+545: 88    LYI   #$8
+546: 1D    ST
+547: 58    LXI   #$0
+548: 8E    LYI   #$E
+549: 0D    L
+54A: 59    LXI   #$1
+54B: 89    LYI   #$9
+54C: 1D    ST
+54D: 58    LXI   #$0
+54E: 8F    LYI   #$F
+54F: 0D    L
+550: 59    LXI   #$1
+551: 8A    LYI   #$A
+552: 1D    ST
+553: 17    TSA
+554: 58    LXI   #$0
+555: 6A E4 JPL   $02E4
+557: 58    LXI   #$0
+558: 89    LYI   #$9
+559: 39    TBIT  1
+55A: DD    JMP   $055D
+55B: 34    RBIT  0
+55C: 2C    RTS
+55D: 30    SBIT  0
+55E: 2C    RTS
+55F: FF    JMP   $057F
+560: 96    LI    #$6
+561: 23    RSTC
+562: 01    OUTO
+563: 9F    LI    #$F
+564: 21    SETC
+565: 01    OUTO
+566: 97    LI    #$7
+567: 02    OUTP
+568: 9F    LI    #$F
+569: 83    LYI   #$3
+56A: 03    OUT
+56B: 45    RSTD  1
+56C: 41    SETD  1
+56D: 2C    RTS
+56E: 96    LI    #$6
+56F: 23    RSTC
+570: 01    OUTO
+571: 9F    LI    #$F
+572: 21    SETC
+573: 01    OUTO
+574: 97    LI    #$7
+575: 02    OUTP
+576: 90    LI    #$0
+577: 83    LYI   #$3
+578: 03    OUT
+579: 45    RSTD  1
+57A: 41    SETD  1
+57B: 2C    RTS
+57C: FF    JMP   $057F
+57D: FF    JMP   $057F
+57E: FF    JMP   $057F
+57F: FF    JMP   $05BF
+580: 59    LXI   #$1
+581: 8B    LYI   #$B
+582: 9F    LI    #$F
+583: 0A    STIC
+584: 08    ICY
+585: 97    LI    #$7
+586: 0A    STIC
+587: 90    LI    #$0
+588: 0A    STIC
+589: 90    LI    #$0
+58A: 1D    ST
+58B: 83    LYI   #$3
+58C: 55    XYD   5
+58D: 80    LYI   #$0
+58E: 56    XYD   6
+58F: 64 84 CALL  $0484
+591: 59    LXI   #$1
+592: 8B    LYI   #$B
+593: 9F    LI    #$F
+594: 0A    STIC
+595: 08    ICY
+596: 97    LI    #$7
+597: 0A    STIC
+598: 98    LI    #$8
+599: 0A    STIC
+59A: 90    LI    #$0
+59B: 1D    ST
+59C: 83    LYI   #$3
+59D: 55    XYD   5
+59E: 80    LYI   #$0
+59F: 56    XYD   6
+5A0: 6C 98 JPL   $0498
+5A2: 59    LXI   #$1
+5A3: 8B    LYI   #$B
+5A4: 9F    LI    #$F
+5A5: 0A    STIC
+5A6: 08    ICY
+5A7: 97    LI    #$7
+5A8: 0A    STIC
+5A9: 91    LI    #$1
+5AA: 0A    STIC
+5AB: 90    LI    #$0
+5AC: 1D    ST
+5AD: 83    LYI   #$3
+5AE: 55    XYD   5
+5AF: 80    LYI   #$0
+5B0: 56    XYD   6
+5B1: 64 84 CALL  $0484
+5B3: 59    LXI   #$1
+5B4: 8B    LYI   #$B
+5B5: 9F    LI    #$F
+5B6: 0A    STIC
+5B7: 08    ICY
+5B8: 90    LI    #$0
+5B9: 0A    STIC
+5BA: 90    LI    #$0
+5BB: 0A    STIC
+5BC: 92    LI    #$2
+5BD: 1D    ST
+5BE: 83    LYI   #$3
+5BF: 55    XYD   5
+5C0: 80    LYI   #$0
+5C1: 56    XYD   6
+5C2: 6C 98 JPL   $0498
+5C4: FF    JMP   $05FF
+5C5: FF    JMP   $05FF
+5C6: FF    JMP   $05FF
+5C7: FF    JMP   $05FF
+5C8: FF    JMP   $05FF
+5C9: FF    JMP   $05FF
+5CA: FF    JMP   $05FF
+5CB: FF    JMP   $05FF
+5CC: FF    JMP   $05FF
+5CD: FF    JMP   $05FF
+5CE: FF    JMP   $05FF
+5CF: FF    JMP   $05FF
+5D0: FF    JMP   $05FF
+5D1: FF    JMP   $05FF
+5D2: FF    JMP   $05FF
+5D3: FF    JMP   $05FF
+5D4: FF    JMP   $05FF
+5D5: FF    JMP   $05FF
+5D6: FF    JMP   $05FF
+5D7: FF    JMP   $05FF
+5D8: FF    JMP   $05FF
+5D9: FF    JMP   $05FF
+5DA: FF    JMP   $05FF
+5DB: FF    JMP   $05FF
+5DC: FF    JMP   $05FF
+5DD: FF    JMP   $05FF
+5DE: FF    JMP   $05FF
+5DF: FF    JMP   $05FF
+5E0: FF    JMP   $05FF
+5E1: FF    JMP   $05FF
+5E2: FF    JMP   $05FF
+5E3: FF    JMP   $05FF
+5E4: FF    JMP   $05FF
+5E5: FF    JMP   $05FF
+5E6: FF    JMP   $05FF
+5E7: FF    JMP   $05FF
+5E8: FF    JMP   $05FF
+5E9: FF    JMP   $05FF
+5EA: FF    JMP   $05FF
+5EB: FF    JMP   $05FF
+5EC: FF    JMP   $05FF
+5ED: FF    JMP   $05FF
+5EE: FF    JMP   $05FF
+5EF: FF    JMP   $05FF
+5F0: FF    JMP   $05FF
+5F1: FF    JMP   $05FF
+5F2: FF    JMP   $05FF
+5F3: FF    JMP   $05FF
+5F4: FF    JMP   $05FF
+5F5: FF    JMP   $05FF
+5F6: FF    JMP   $05FF
+5F7: FF    JMP   $05FF
+5F8: FF    JMP   $05FF
+5F9: FF    JMP   $05FF
+5FA: FF    JMP   $05FF
+5FB: FF    JMP   $05FF
+5FC: FF    JMP   $05FF
+5FD: FF    JMP   $05FF
+5FE: FF    JMP   $05FF
+5FF: FF    JMP   $063F
+600: 58    LXI   #$0
+601: 85    LYI   #$5
+602: 0D    L
+603: 5A    LXI   #$2
+604: 0A    STIC
+605: 58    LXI   #$0
+606: 0D    L
+607: 5A    LXI   #$2
+608: 1D    ST
+609: 59    LXI   #$1
+60A: 8B    LYI   #$B
+60B: 0D    L
+60C: 5A    LXI   #$2
+60D: 1D    ST
+60E: 59    LXI   #$1
+60F: 8D    LYI   #$D
+610: 0D    L
+611: 5A    LXI   #$2
+612: 0A    STIC
+613: 59    LXI   #$1
+614: 0D    L
+615: 5A    LXI   #$2
+616: 0A    STIC
+617: 59    LXI   #$1
+618: 0D    L
+619: 5A    LXI   #$2
+61A: 1D    ST
+61B: 2C    RTS
+61C: FF    JMP   $063F
+61D: FF    JMP   $063F
+61E: FF    JMP   $063F
+61F: FF    JMP   $063F
+620: 5A    LXI   #$2
+621: 85    LYI   #$5
+622: 0D    L
+623: 58    LXI   #$0
+624: 0A    STIC
+625: 5A    LXI   #$2
+626: 0D    L
+627: 58    LXI   #$0
+628: 1D    ST
+629: 5A    LXI   #$2
+62A: 8B    LYI   #$B
+62B: 0D    L
+62C: 59    LXI   #$1
+62D: 1D    ST
+62E: 5A    LXI   #$2
+62F: 8D    LYI   #$D
+630: 0D    L
+631: 59    LXI   #$1
+632: 0A    STIC
+633: 5A    LXI   #$2
+634: 0D    L
+635: 59    LXI   #$1
+636: 0A    STIC
+637: 5A    LXI   #$2
+638: 0D    L
+639: 59    LXI   #$1
+63A: 1D    ST
+63B: 2C    RTS
+63C: 00    NOP
+63D: 00    NOP
+63E: 00    NOP
+63F: 00    NOP
+640: 00    NOP
+641: 00    NOP
+642: 00    NOP
+643: 00    NOP
+644: 00    NOP
+645: 00    NOP
+646: 00    NOP
+647: 00    NOP
+648: 00    NOP
+649: 00    NOP
+64A: 00    NOP
+64B: 00    NOP
+64C: 00    NOP
+64D: 00    NOP
+64E: 00    NOP
+64F: 00    NOP
+650: 00    NOP
+651: 00    NOP
+652: 00    NOP
+653: 00    NOP
+654: 00    NOP
+655: 00    NOP
+656: 00    NOP
+657: 00    NOP
+658: 00    NOP
+659: 00    NOP
+65A: 00    NOP
+65B: 00    NOP
+65C: 00    NOP
+65D: 00    NOP
+65E: 00    NOP
+65F: 00    NOP
+660: 00    NOP
+661: 00    NOP
+662: 00    NOP
+663: 00    NOP
+664: 00    NOP
+665: 00    NOP
+666: 00    NOP
+667: 00    NOP
+668: 00    NOP
+669: 00    NOP
+66A: 00    NOP
+66B: 00    NOP
+66C: 00    NOP
+66D: 00    NOP
+66E: 00    NOP
+66F: 00    NOP
+670: 00    NOP
+671: 00    NOP
+672: 00    NOP
+673: 00    NOP
+674: 00    NOP
+675: 00    NOP
+676: 00    NOP
+677: 00    NOP
+678: 00    NOP
+679: 00    NOP
+67A: 00    NOP
+67B: 00    NOP
+67C: 00    NOP
+67D: 00    NOP
+67E: 00    NOP
+67F: 00    NOP
+680: 00    NOP
+681: 00    NOP
+682: 00    NOP
+683: 00    NOP
+684: 00    NOP
+685: 00    NOP
+686: 00    NOP
+687: 00    NOP
+688: 00    NOP
+689: 00    NOP
+68A: 00    NOP
+68B: 00    NOP
+68C: 00    NOP
+68D: 00    NOP
+68E: 00    NOP
+68F: 00    NOP
+690: 00    NOP
+691: 00    NOP
+692: 00    NOP
+693: 00    NOP
+694: 00    NOP
+695: 00    NOP
+696: 00    NOP
+697: 00    NOP
+698: 00    NOP
+699: 00    NOP
+69A: 00    NOP
+69B: 00    NOP
+69C: 00    NOP
+69D: 00    NOP
+69E: 00    NOP
+69F: 00    NOP
+6A0: 00    NOP
+6A1: 00    NOP
+6A2: 00    NOP
+6A3: 00    NOP
+6A4: 00    NOP
+6A5: 00    NOP
+6A6: 00    NOP
+6A7: 00    NOP
+6A8: 00    NOP
+6A9: 00    NOP
+6AA: 00    NOP
+6AB: 00    NOP
+6AC: 00    NOP
+6AD: 00    NOP
+6AE: 00    NOP
+6AF: 00    NOP
+6B0: 00    NOP
+6B1: 00    NOP
+6B2: 00    NOP
+6B3: 00    NOP
+6B4: 00    NOP
+6B5: 00    NOP
+6B6: 00    NOP
+6B7: 00    NOP
+6B8: 00    NOP
+6B9: 00    NOP
+6BA: 00    NOP
+6BB: 00    NOP
+6BC: 00    NOP
+6BD: 00    NOP
+6BE: 00    NOP
+6BF: 00    NOP
+6C0: 00    NOP
+6C1: 00    NOP
+6C2: 00    NOP
+6C3: 00    NOP
+6C4: 00    NOP
+6C5: 00    NOP
+6C6: 00    NOP
+6C7: 00    NOP
+6C8: 00    NOP
+6C9: 00    NOP
+6CA: 00    NOP
+6CB: 00    NOP
+6CC: 00    NOP
+6CD: 00    NOP
+6CE: 00    NOP
+6CF: 00    NOP
+6D0: 00    NOP
+6D1: 00    NOP
+6D2: 00    NOP
+6D3: 00    NOP
+6D4: 00    NOP
+6D5: 00    NOP
+6D6: 00    NOP
+6D7: 00    NOP
+6D8: 00    NOP
+6D9: 00    NOP
+6DA: 00    NOP
+6DB: 00    NOP
+6DC: 00    NOP
+6DD: 00    NOP
+6DE: 00    NOP
+6DF: 00    NOP
+6E0: 00    NOP
+6E1: 00    NOP
+6E2: 00    NOP
+6E3: 00    NOP
+6E4: 00    NOP
+6E5: 00    NOP
+6E6: 00    NOP
+6E7: 00    NOP
+6E8: 00    NOP
+6E9: 00    NOP
+6EA: 00    NOP
+6EB: 00    NOP
+6EC: 00    NOP
+6ED: 00    NOP
+6EE: 00    NOP
+6EF: 00    NOP
+6F0: 00    NOP
+6F1: 00    NOP
+6F2: 00    NOP
+6F3: 00    NOP
+6F4: 00    NOP
+6F5: 00    NOP
+6F6: 00    NOP
+6F7: 00    NOP
+6F8: 00    NOP
+6F9: 00    NOP
+6FA: 00    NOP
+6FB: 00    NOP
+6FC: 00    NOP
+6FD: 00    NOP
+6FE: 00    NOP
+6FF: 00    NOP
+700: 00    NOP
+701: 00    NOP
+702: 00    NOP
+703: 00    NOP
+704: 00    NOP
+705: 00    NOP
+706: 00    NOP
+707: 00    NOP
+708: 00    NOP
+709: 00    NOP
+70A: 00    NOP
+70B: 00    NOP
+70C: 00    NOP
+70D: 00    NOP
+70E: 00    NOP
+70F: 00    NOP
+710: 00    NOP
+711: 00    NOP
+712: 00    NOP
+713: 00    NOP
+714: 00    NOP
+715: 00    NOP
+716: 00    NOP
+717: 00    NOP
+718: 00    NOP
+719: 00    NOP
+71A: 00    NOP
+71B: 00    NOP
+71C: 00    NOP
+71D: 00    NOP
+71E: 00    NOP
+71F: 00    NOP
+720: 00    NOP
+721: 00    NOP
+722: 00    NOP
+723: 00    NOP
+724: 00    NOP
+725: 00    NOP
+726: 00    NOP
+727: 00    NOP
+728: 00    NOP
+729: 00    NOP
+72A: 00    NOP
+72B: 00    NOP
+72C: 00    NOP
+72D: 00    NOP
+72E: 00    NOP
+72F: 00    NOP
+730: 00    NOP
+731: 00    NOP
+732: 00    NOP
+733: 00    NOP
+734: 00    NOP
+735: 00    NOP
+736: 00    NOP
+737: 00    NOP
+738: 00    NOP
+739: 00    NOP
+73A: 00    NOP
+73B: 00    NOP
+73C: 00    NOP
+73D: 00    NOP
+73E: 00    NOP
+73F: 00    NOP
+740: 00    NOP
+741: 00    NOP
+742: 00    NOP
+743: 00    NOP
+744: 00    NOP
+745: 00    NOP
+746: 00    NOP
+747: 00    NOP
+748: 00    NOP
+749: 00    NOP
+74A: 00    NOP
+74B: 00    NOP
+74C: 00    NOP
+74D: 00    NOP
+74E: 00    NOP
+74F: 00    NOP
+750: 00    NOP
+751: 00    NOP
+752: 00    NOP
+753: 00    NOP
+754: 00    NOP
+755: 00    NOP
+756: 00    NOP
+757: 00    NOP
+758: 00    NOP
+759: 00    NOP
+75A: 00    NOP
+75B: 00    NOP
+75C: 00    NOP
+75D: 00    NOP
+75E: 00    NOP
+75F: 00    NOP
+760: 00    NOP
+761: 00    NOP
+762: 00    NOP
+763: 00    NOP
+764: 00    NOP
+765: 00    NOP
+766: 00    NOP
+767: 00    NOP
+768: 00    NOP
+769: 00    NOP
+76A: 00    NOP
+76B: 00    NOP
+76C: 00    NOP
+76D: 00    NOP
+76E: 00    NOP
+76F: 00    NOP
+770: 00    NOP
+771: 00    NOP
+772: 00    NOP
+773: 00    NOP
+774: 00    NOP
+775: 00    NOP
+776: 00    NOP
+777: 00    NOP
+778: 00    NOP
+779: 00    NOP
+77A: 00    NOP
+77B: 00    NOP
+77C: 00    NOP
+77D: 00    NOP
+77E: 00    NOP
+77F: 00    NOP
+780: 00    NOP
+781: 00    NOP
+782: 00    NOP
+783: 00    NOP
+784: 00    NOP
+785: 00    NOP
+786: 00    NOP
+787: 00    NOP
+788: 00    NOP
+789: 00    NOP
+78A: 00    NOP
+78B: 00    NOP
+78C: 00    NOP
+78D: 00    NOP
+78E: 00    NOP
+78F: 00    NOP
+790: 00    NOP
+791: 00    NOP
+792: 00    NOP
+793: 00    NOP
+794: 00    NOP
+795: 00    NOP
+796: 00    NOP
+797: 00    NOP
+798: 00    NOP
+799: 00    NOP
+79A: 00    NOP
+79B: 00    NOP
+79C: 00    NOP
+79D: 00    NOP
+79E: 00    NOP
+79F: 00    NOP
+7A0: 00    NOP
+7A1: 00    NOP
+7A2: 00    NOP
+7A3: 00    NOP
+7A4: 00    NOP
+7A5: 00    NOP
+7A6: 00    NOP
+7A7: 00    NOP
+7A8: 00    NOP
+7A9: 00    NOP
+7AA: 00    NOP
+7AB: 00    NOP
+7AC: 00    NOP
+7AD: 00    NOP
+7AE: 00    NOP
+7AF: 00    NOP
+7B0: 00    NOP
+7B1: 00    NOP
+7B2: 00    NOP
+7B3: 00    NOP
+7B4: 00    NOP
+7B5: 00    NOP
+7B6: 00    NOP
+7B7: 00    NOP
+7B8: 00    NOP
+7B9: 00    NOP
+7BA: 00    NOP
+7BB: 00    NOP
+7BC: 00    NOP
+7BD: 00    NOP
+7BE: 00    NOP
+7BF: 00    NOP
+7C0: 00    NOP
+7C1: 00    NOP
+7C2: 00    NOP
+7C3: 00    NOP
+7C4: 00    NOP
+7C5: 00    NOP
+7C6: 00    NOP
+7C7: 00    NOP
+7C8: 00    NOP
+7C9: 00    NOP
+7CA: 00    NOP
+7CB: 00    NOP
+7CC: 00    NOP
+7CD: 00    NOP
+7CE: 00    NOP
+7CF: 00    NOP
+7D0: 00    NOP
+7D1: 00    NOP
+7D2: 00    NOP
+7D3: 00    NOP
+7D4: 00    NOP
+7D5: 00    NOP
+7D6: 00    NOP
+7D7: 00    NOP
+7D8: 00    NOP
+7D9: 00    NOP
+7DA: 00    NOP
+7DB: 00    NOP
+7DC: 00    NOP
+7DD: 00    NOP
+7DE: 00    NOP
+7DF: 00    NOP
+7E0: 00    NOP
+7E1: 00    NOP
+7E2: 00    NOP
+7E3: 00    NOP
+7E4: 00    NOP
+7E5: 00    NOP
+7E6: 00    NOP
+7E7: 00    NOP
+7E8: 00    NOP
+7E9: 00    NOP
+7EA: 00    NOP
+7EB: 00    NOP
+7EC: 00    NOP
+7ED: 00    NOP
+7EE: 00    NOP
+7EF: 00    NOP
+7F0: 00    NOP
+7F1: 00    NOP
+7F2: 00    NOP
+7F3: 00    NOP
+7F4: 00    NOP
+7F5: 00    NOP
+7F6: 00    NOP
+7F7: 00    NOP
+7F8: 00    NOP
+7F9: 00    NOP
+7FA: 00    NOP
+7FB: 00    NOP
+7FC: 00    NOP
+7FD: 00    NOP
+7FE: 00    NOP
+7FF: 00    NOP
