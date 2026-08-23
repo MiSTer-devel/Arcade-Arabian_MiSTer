@@ -78,12 +78,8 @@ wire cen_2m = (div6 == 3'd0);        // Every 6th clock
 
 assign ce_pix = cen_6m;
 
-// Asserted while the DMA blitter owns the bitmap. arabian.cpp performs the whole blit
-// inside the $E006 write, so software may issue the next one a handful of instructions
-// later; on the board the DMA holds the bus for the same span. Holding the Z80 makes the
-// blit atomic from software's point of view and removes the whole class of dropped-trigger
-// bugs (Kangaroo BLITQUEUE-2026-08-21, the invisible gloves) rather than queueing around it.
-// Affordable here at 4 clocks per 4-pixel group (~1 clk/px); Kangaroo's was ~6 clk/px.
+// Holds the Z80 while the blitter owns the bitmap: arabian.cpp blits inside the $E006
+// write and the board's DMA holds the bus for the same span, so the blit must be atomic.
 wire blit_active_w;
 
 //------------------------------------------------------------ CPU -------------------------------------------------------------//
@@ -230,15 +226,8 @@ wire n_nmi = 1'b1;
 //   AY port B b5 -> /IREQ, b4 -> /SRES                         (ay8910_portb_w)
 // There is no protection PROM on this board and the MCU does not drive the Z80's NMI.
 
-// timer /32 prescaler (MAME TIMER_PRESCALE=32) lives INSIDE the mb88.sv wrapper
-// (generated from `ena`, no external ena_timer port anymore — see mb88.sv header).
-// `ena` is one MB88 MACHINE CYCLE, not one instruction: verilator/mb88_testsuite
-// (in the PolePosition tree) diffs mb88_core against MAME and shows 1 ce for 1-cycle
-// opcodes and 2 ce for the 19 two-cycle ones (3D/3E/3F/60-67/68-6F), 0 cycle failures.
-// MAME converts pin clocks at (clocks+5)/6 (mb88xx.h:126). Arabian clocks the MB8841 at
-// MAIN_OSC/3/2 = 2 MHz PIN rate (arabian.cpp), so machine cycles are 2 MHz / 6 = 333.33 kHz.
-// cen_2m is the PIN rate; feeding it straight to `ena` would run the MCU -- and its timer
-// -- 6x fast. Same rule as PolePosition's HW-confirmed MCU-DIV6 and Kangaroo's 2.5 MHz / 6.
+// `ena` is one MB88 machine cycle. MAME converts pin clocks at (clocks+5)/6, so the 2 MHz
+// pin rate is divided by 6. The /32 timer prescaler lives inside the mb88.sv wrapper.
 localparam int MCU_CEN_DIV = 6;
 reg [2:0] mcu_div_cnt = 3'd0;
 always @(posedge clk_12m)
@@ -295,8 +284,7 @@ wire [3:0] com_val = ~com_sel[0] ? com0 :
                      ~com_sel[3] ? com3 :
                      ~com_sel[4] ? com4 :
                      ~com_sel[5] ? com5 : 4'hF;
-// The RAM read is registered, but the MCU advances only every 36 master clocks while the
-// dpram settles in 2 — the address is stable for an entire machine cycle before K is sampled.
+// The dpram settles in 2 clocks and the MCU advances every 36, so the address is stable.
 wire [3:0] mcu_k = ~r0_out[0] ? mcu_ram_q[3:0] : com_val;
 
 //--- flip screen ---
@@ -374,15 +362,9 @@ end
 
 //-------------------------------------------------------- Video Timing --------------------------------------------------------//
 
-// 12 MHz master (XTAL on SP-237 sheet 8B), 6 MHz dot clock.
-//
-// H_TOTAL is read off the schematic: the horizontal chain (IC95 LS393, AV0-AV6') counts
-// 4-pixel GROUPS -- the LS95 shift registers on sheet 11B load once per 4 pixels -- so
-// 96 groups x 4 = 384 dots, giving 6 MHz / 384 = 15.625 kHz.
-//
-// V_TOTAL is NOT off the schematic: the vertical decode gates (IC93/94/110/92 -> /BLNK,
-// /INT, /VSYNC) are past what the scan resolves. 264 lines gives 59.19 Hz. Adjust here if
-// the frame rate proves wrong -- everything IRQ-paced (music tempo included) follows it.
+// 12 MHz master (XTAL, SP-237 sheet 8B), 6 MHz dot clock.
+// H_TOTAL: the horizontal chain (IC95) counts 4-pixel groups, 96 x 4 = 384 -> 15.625 kHz.
+// V_TOTAL 264 gives 59.19 Hz; not read off the schematic.
 localparam int H_TOTAL = 384;
 localparam int V_TOTAL = 264;
 
@@ -410,11 +392,8 @@ always_ff @(posedge clk_12m) begin
     end
 end
 
-// The scanout pixel pipeline is 2 clk_12m cycles deep (combinational address -> DPRAM
-// address register -> scan_word latch), so the pixel for h_cnt=H leaves at H+2. hblank and
-// hsync must be delayed to match or the active window leads the data. This is a latency
-// match, not a window shift. The v axis has no such latency, so vblank/vsync stay
-// combinational and the vblank IRQ keeps using the undelayed video_vblank.
+// The scanout pipeline is 2 clk_12m cycles deep, so hblank/hsync are delayed to match.
+// This is a latency match, not a window shift; the v axis has no such latency.
 wire video_hblank_raw = (h_cnt >= H_VIS_END[8:0]);
 wire video_hsync_raw  = (h_cnt >= HS_START[8:0]) && (h_cnt < HS_END[8:0]);
 reg [1:0] hblank_sr = 2'b11;
@@ -440,7 +419,7 @@ wire [15:0] vram_lo_qb, vram_hi_qb;   // Port B read data (scanout side)
 reg  [13:0] vram_addr_a;
 reg  [15:0] vram_lo_da, vram_hi_da;
 reg         vram_we_a;
-wire [13:0] vram_addr_b;               // Scanout address (active accent accent driven by compositing logic)
+wire [13:0] vram_addr_b;               // Scanout address, from the compositing logic
 
 dpram_dc #(.widthad_a(14), .width_a(16)) vram_lo
 (
@@ -472,9 +451,7 @@ dpram_dc #(.widthad_a(14), .width_a(16)) vram_hi
     .q_b(vram_hi_qb)
 );
 
-// Arabian keeps both planes in the SAME pixel byte (A = upper nibble, B = lower), so one
-// scanout read serves both. Kangaroo needed a second mirrored pair of RAMs because its two
-// planes came from different addresses; that pair is gone, halving VRAM back to 512 Kbit.
+// Both planes live in the same pixel byte (A upper nibble, B lower), so one read serves both.
 
 //------------------------------------------------ VRAM Merge Functions --------------------------------------------------------//
 
@@ -509,8 +486,7 @@ endfunction
 // arabian.cpp videoram_w(): the CPU writes four pixels of two bits each, pixel m taking
 // data[m] and data[m+4]. blitter[0] bits 3..0 each enable one bit-pair of the pixel byte:
 // bit3 -> [1:0], bit2 -> [3:2], bit1 -> [5:4], bit0 -> [7:6].
-// (MAME's AZ/AR-style comments on that function do not match the palette bit order; the
-// code does, and this follows the code.)
+// MAME's comments on that function do not match the palette bit order; the code does.
 function [31:0] cpu_merge;
     input [31:0] old_word;
     input  [7:0] data;
@@ -553,16 +529,10 @@ dpram_dc #(.widthad_a(14), .width_a(8)) gfx_plane_hi
 
 //------------------------------------------------------ DMA Blitter -----------------------------------------------------------//
 
-// One iteration handles four pixels, which is exactly one VRAM word: the destination X is
-// always a multiple of 4, so base[0..3] never straddle a word. Both the blit and the direct
-// CPU write are therefore a plain read-modify-write of a single word.
-//
-// dpram_dc is altsyncram: registered address plus registered output = 2 clocks from
-// presenting an address to valid data. Each access is RD, RD2, WR (compute, assert wren),
-// COMMIT (wren high, address held) = 4 clocks per four pixels.
-//
-// MAME's loop is X outer, Y inner, the source advancing once per inner iteration:
-//   for (i = 0; i <= sx; i++, x += 4) for (j = 0; j <= sy; j++)
+// One iteration handles four pixels = one VRAM word (destination X is always a multiple
+// of 4), so blit and CPU write are both a read-modify-write of a single word.
+// dpram_dc is altsyncram: 2 clocks address-to-data, so each access is RD, RD2, WR, COMMIT
+// = 4 clocks per four pixels. MAME's loop is X outer, Y inner, source advancing per step.
 
 localparam ST_IDLE        = 4'd0;
 localparam ST_CPU_RD      = 4'd1;
@@ -586,13 +556,12 @@ reg        blit_active = 1'b0;   // a blit is in progress; the Z80 is held for i
 reg        blit_last   = 1'b0;   // this iteration is the last one
 reg        blit_resume = 1'b0;   // a CPU write was serviced mid-blit; go back afterwards
 
-// A trigger arriving mid-blit must not be dropped — the Kangaroo BLITQUEUE lesson.
+// A trigger arriving mid-blit must not be dropped.
 reg        blit_pend = 1'b0;
 reg  [7:0] pend_plane, pend_y, pend_x, pend_sy, pend_sx;
 reg [15:0] pend_src;
 
-// CPU bitmap writes are serviced between blit iterations, so one can wait at most a single
-// iteration (4 clocks) — well inside the Z80's minimum spacing between consecutive writes.
+// CPU bitmap writes are serviced between blit iterations, so one waits at most 4 clocks.
 wire       cpu_vram_wr = cs_videoram & ~n_wr;
 reg        cpu_vram_wr_d = 1'b0;
 wire       cpu_vram_wr_edge = cpu_vram_wr & ~cpu_vram_wr_d;
@@ -609,9 +578,8 @@ wire  [7:0] start_x     = blit_pend ? pend_x     : {blit_reg[4][5:0], 2'b00};
 wire  [7:0] start_sy    = blit_pend ? pend_sy    : blit_reg[5];
 wire  [7:0] start_sx    = blit_pend ? pend_sx    : blit_reg[6];
 
-// What ST_IDLE will actually consume this cycle. A CPU bitmap write wins over a blit, so a
-// trigger arriving while idle-but-servicing-a-write is NOT started -- it has to be queued.
-// Keying the queue off "not idle" missed that case and dropped the trigger outright.
+// What ST_IDLE consumes this cycle. A CPU bitmap write wins over a blit, so a trigger
+// arriving while idle-but-servicing-a-write is not started and must be queued.
 wire idle_takes_cpu   = (vram_state == ST_IDLE) && (cpu_vram_wr_edge || cpu_pend);
 wire idle_starts_blit = (vram_state == ST_IDLE) && !idle_takes_cpu && (blitter_start || blit_pend);
 wire trigger_consumed = idle_starts_blit && !blit_pend;   // a live trigger started right now
@@ -641,8 +609,7 @@ always_ff @(posedge clk_12m) begin
     else begin
         vram_we_a <= 1'b0;
 
-        // Queue any trigger not started this very cycle. If a queued blit starts while a new
-        // trigger arrives, the new one replaces it in the queue and nothing is lost.
+        // A new trigger replaces any queued one; nothing is lost.
         if (blitter_start && !trigger_consumed) begin
             blit_pend  <= 1'b1;
             pend_plane <= blit_reg[0];

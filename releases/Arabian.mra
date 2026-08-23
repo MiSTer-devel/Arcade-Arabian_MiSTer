@@ -65,9 +65,7 @@
          Header: START_WAIT, CHECK_WAIT, CHECK_HOLD, WRITE_HOLD, REPEATCOUNT, REPEATWAIT, PAUSEPAD, CHANGEMASK
          Entries [ADDR:4][LEN:2][START:1][END:1], from MAME hiscore.dat:
              @:maincpu,program,d384,3c,00,00
-             @:maincpu,program,d3bd,1,01,01
-         DIAG 2026-08-22: entry-2 sentinels forced 00/00 so the check always passes.
-         Restores => the 01 sentinel was never matching. Still fails => writeback path. -->
+             @:maincpu,program,d3bd,1,01,01 -->
     <rom index="3" md5="none">
         <part>
 	    00 00 FF FF 00 FF 00 02 00 02 00 01 11 11 00 00

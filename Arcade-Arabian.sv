@@ -392,8 +392,7 @@ wire hs, vs;
 wire [7:0] r, g, b;
 wire ce_pix;
 
-// Arabian draws one pixel per source pixel — 256 across. Kangaroo's 512 px/line doubling existed
-// only to reproduce its KOS1 dimmed-copy interleave, which this board does not have.
+// One pixel per source pixel, 256 across — no Kangaroo-style doubling on this board.
 wire rotate_ccw = 1;  // Arabian is ROT270 (CCW)
 wire no_rotate = status[12] | direct_video;
 wire flip = status[11] | ~no_rotate;
@@ -469,10 +468,8 @@ Arabian arabian_inst
 	.hs_write(hs_write_enable)
 );
 
-// HISCORE SYSTEM — hiscore.v v0014, driving ioctl_din / ioctl_upload_req.
-// Score data lives in the MB8841 shared RAM, so hs_access borrows the MCU's port in
-// Arabian_CPU.sv; the module pauses the CPU before it touches RAM, which frees that port.
-// Config = MRA index 3, dump = index 4.
+// HISCORE SYSTEM — config = MRA index 3, dump = index 4. Score data lives in the MB8841
+// shared RAM, so hs_access borrows the MCU's port while the module has the CPU paused.
 wire [15:0] hs_address;
 wire  [7:0] hs_data_in;
 wire  [7:0] hs_data_out;
