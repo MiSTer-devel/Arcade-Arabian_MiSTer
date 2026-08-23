@@ -1,7 +1,9 @@
 //============================================================================
 //
 //  Arabian Main CPU Board
-//  Based on MAME kangaroo.cpp by Ville Laitinen, Aaron Giles
+//  Based on MAME arabian.cpp by Dan Boris.
+//  The video timing, VRAM and blitter blocks are still the kangaroo.cpp implementation
+//  by Ville Laitinen and Aaron Giles, pending their port.
 //
 //============================================================================
 
@@ -10,23 +12,28 @@ module Arabian_CPU
     input         reset,
     input         clk_12m,           // 12 MHz master clock (MAIN_OSC, matches real XTAL)
 
-    // Video outputs
-    output  [2:0] video_r, video_g,  // BGR 3-bit palette
-    output  [1:0] video_b,
+    // Video outputs — 8-bit, straight from the colour-output equations
+    output  [7:0] video_r, video_g, video_b,
     output        video_hsync, video_vsync,
     output        video_hblank, video_vblank,
     output        ce_pix,
 
-    // Inputs
-    input   [7:0] dsw0,             // 8-bit DIP switch
-    input   [4:0] in0,              // IN0: service, start1, start2, coin_l, coin_r
-    // GAMESEL-2026-06-21: in1 widened 5->8 (bit5/0x20 = Funky Fish 2nd button). Original: input [4:0] in1,
-    input   [7:0] in1,              // IN1: P1 right,left,up,down,punch + bit5 = FF 2nd btn (0x20)
-    input   [7:0] in2,              // IN2: P2 right, left, up, down, punch
+    // Inputs read directly by the Z80
+    input   [7:0] dsw1,             // SW1  at $C200
+    input   [2:0] in0,              // $C000: b0 coin1, b1 coin2, b2 service (all active high)
+    // Everything else is scanned by the MB8841 through its K port, six 4-bit banks.
+    // COM0 {aux-s, start2, start1, 1} · COM1/COM3 {down,up,left,right} · COM2/COM4 {0,0,0,button}
+    // COM3/COM4 are the cocktail player-2 set · COM5 is SW2.
+    input   [3:0] com0, com1, com2, com3, com4, com5,
 
-    // Sound interface
-    output  [7:0] sound_latch,      // Data to sound CPU
-    output        sound_latch_wr,   // Strobe: sound latch written
+    // AY-3-8910, driven directly over Z80 I/O space (no sound CPU on this board)
+    output        ay_addr_wr,       // OUT to $C800: register select
+    output        ay_data_wr,       // OUT to $CA00: register data
+    output  [7:0] ay_din,
+    // AY port A = video control, port B = MCU /IREQ, /SRES and coin counters.
+    // Consumed by the MCU block and the palette/compositing stage.
+    input   [7:0] ay_ioa,
+    input   [7:0] ay_iob,
 
     // Blitter GFX ROM — 32KB, index 2. Blitter-only; not visible in CPU address space.
     input         gfx_cs_i,
@@ -36,9 +43,8 @@ module Arabian_CPU
     input   [7:0] ioctl_data,
     input         ioctl_wr,
 
-    // MCU (MB8841) — index 6 ROM download + presence flag (original Kangaroo HW only)
-    input         mcu_present,    // 1 = MB8841 fitted (kangaroo/kangarooa); 0 = bootleg / Funky Fish
-    input         mcurom_wr,      // ioctl_wr for index 6 (prog 0x000-0x7FF + protrom 0x800-0xFFF)
+    // AY port B drives the MCU's /IREQ and /SRES
+    input         mcurom_wr,      // ioctl_wr for index 6 (MB8841 program, 2KB)
 
     input         pause,
 
@@ -70,6 +76,14 @@ wire cen_2m = (div6 == 3'd0);        // Every 6th clock
 
 assign ce_pix = cen_6m;
 
+// Asserted while the DMA blitter owns the bitmap. arabian.cpp performs the whole blit
+// inside the $E006 write, so software may issue the next one a handful of instructions
+// later; on the board the DMA holds the bus for the same span. Holding the Z80 makes the
+// blit atomic from software's point of view and removes the whole class of dropped-trigger
+// bugs (Kangaroo BLITQUEUE-2026-08-21, the invisible gloves) rather than queueing around it.
+// Affordable here at 4 clocks per 4-pixel group (~1 clk/px); Kangaroo's was ~6 clk/px.
+wire blit_active_w;
+
 //------------------------------------------------------------ CPU -------------------------------------------------------------//
 
 // Main CPU — Zilog Z80 (T80s soft core)
@@ -81,7 +95,7 @@ T80s #(.Mode(0), .T2Write(1), .IOWait(1)) main_cpu
 (
     .RESET_n(reset),
     .CLK(clk_12m),
-    .CEN(cen_3m & ~pause),
+    .CEN(cen_3m & ~pause & ~blit_active_w), // DMA holds the bus; see the blitter
     .INT_n(n_irq),
     .NMI_n(n_nmi),
     .BUSRQ_n(1'b1),
@@ -104,45 +118,41 @@ wire mem_access = ~n_mreq & n_rfsh;
 // Program ROM: 0x0000-0x7FFF (read only), flat 32KB
 wire cs_any_rom = mem_access & ~cpu_A[15];
 
-// Video RAM: 0x8000-0xBFFF (write only from CPU perspective)
-wire cs_videoram = mem_access & (cpu_A[15:14] == 2'b10);          // 0x8000-0xBFFF
+// Bitmap RAM: $8000-$BFFF, write only from the CPU's side
+wire cs_videoram = mem_access & (cpu_A[15:14] == 2'b10);          // $8000-$BFFF
 
-// Work RAM: 0xE000-0xE3FF
-wire cs_workram = mem_access & (cpu_A[15:10] == 6'b111000);       // 0xE000-0xE3FF
+// Coin/service inputs: $C000, mirror $01FF
+wire cs_in0 = mem_access & (cpu_A[15:9] == 7'b1100000);           // $C000-$C1FF
 
-// DSW: 0xE400 (read, mirrored across 0xE400-0xE7FF)
-wire cs_dsw = mem_access & (cpu_A[15:10] == 6'b111001);           // 0xE400-0xE7FF
+// SW1: $C200, mirror $01FF
+wire cs_dsw1 = mem_access & (cpu_A[15:9] == 7'b1100001);          // $C200-$C3FF
 
-// Video control: 0xE800-0xE80A (write, mirrored with 0x03F0)
-wire cs_vidctrl = mem_access & (cpu_A[15:10] == 6'b111010);       // 0xE800-0xEBFF
+// Shared MB8841 RAM: $D000-$D7FF, mirror $0800. This is also the Z80's only work RAM.
+wire cs_customram = mem_access & (cpu_A[15:12] == 4'hD);          // $D000-$DFFF
 
-// IN0 read / soundlatch write: 0xEC00
-wire cs_in0 = mem_access & (cpu_A[15:8] == 8'hEC);
+// Blitter registers: $E000-$E006, mirror $0FF8 -> A15-A12 = 1110, register = A[2:0]
+wire cs_blitter = mem_access & (cpu_A[15:12] == 4'hE);            // $E000-$EFFF
 
-// IN1 read / coin counter write: 0xED00
-wire cs_in1 = mem_access & (cpu_A[15:8] == 8'hED);
 
-// IN2 read: 0xEE00
-wire cs_in2 = mem_access & (cpu_A[15:8] == 8'hEE);
-
-// MCU: 0xEF00 (security chip; MB8841 on original HW, returns 0 on bootleg)
-wire cs_mcu = mem_access & (cpu_A[15:8] == 8'hEF);
+// AY-3-8910 lives in I/O space, not memory space. The game issues
+//   ld bc,$C800 / out (c),d / ld b,$CA / out (c),e
+// so the full 16-bit address is on the bus; mirror $01FF means A15-A9 decode.
+// n_m1 qualification keeps interrupt acknowledge (IORQ+M1) out of the decode.
+wire io_write = ~n_iorq & n_m1 & ~n_wr;
+assign ay_addr_wr = io_write & (cpu_A[15:9] == 7'b1100100);   // $C800-$C9FF
+assign ay_data_wr = io_write & (cpu_A[15:9] == 7'b1100101);   // $CA00-$CBFF
+assign ay_din     = cpu_Dout;
 
 //--------------------------------------------------------- CPU Data Mux -------------------------------------------------------//
 
 wire [7:0] rom_D;
-wire [7:0] workram_D;
-wire [7:0] mcu_dout;            // 0xEF00 read data (MCU R0 latch, or 0 on bootleg)
+wire [7:0] customram_D;
 
 wire [7:0] cpu_Din =
-    cs_any_rom     ? rom_D :
-    (cs_workram & ~n_rd) ? workram_D :
-    cs_dsw         ? dsw0 :
-    cs_in0         ? {3'b000, in0} :
-    // GAMESEL-2026-06-21: pass all 8 IN1 bits (was {3'b000, in1}, which forced bits 5-7 to 0 → 2nd button dead).
-    cs_in1         ? in1 :
-    cs_in2         ? in2 :
-    cs_mcu         ? mcu_dout :    // MB8841 R0 (original HW) or 0x00 (bootleg)
+    cs_any_rom              ? rom_D :
+    (cs_customram & ~n_rd)  ? customram_D :
+    cs_dsw1                 ? dsw1 :
+    cs_in0                  ? {5'b00000, in0} :
     8'hFF;
 
 //-------------------------------------------------------- Program ROMs --------------------------------------------------------//
@@ -169,136 +179,133 @@ eprom_8k rom3 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom3_D),
 
 //------------------------------------------------------------ RAM ------------------------------------------------------------//
 
-// Work RAM (0xE000-0xE3FF, 1KB)
-dpram_dc #(.widthad_a(10)) workram
-(
-    .clock_a(clk_12m),
-    .wren_a(cs_workram & ~n_wr),
-    .address_a(cpu_A[9:0]),
-    .data_a(cpu_Dout),
-    .q_a(workram_D),
+// Shared MB8841 RAM ($D000-$D7FF, 2KB) is instantiated in the MB8841 MCU section below,
+// after the MCU-side port wires it needs.
 
-    .clock_b(clk_12m),
-    .wren_b(hs_write),
-    .address_b(hs_address[9:0]),
-    .data_b(hs_data_in),
-    .q_b(hs_data_out)
-);
+// Hiscore needs a third RAM port: the shared RAM's two ports are taken by the Z80 and the
+// MCU. The MRA carries no hiscore config, so the block is inert; wiring it back means
+// muxing onto the MCU port while the game is paused.
+assign hs_data_out = 8'h00;
 
-//--------------------------------------------------- Video Control Registers --------------------------------------------------//
+//----------------------------------------------------- Blitter Registers ------------------------------------------------------//
 
-// MAME: m_video_control[0..10], written at 0xE800-0xE80A
-// Only bits [3:0] of the address select the register (mirrored with 0x03F0)
-reg [7:0] video_control [0:10];
-integer vc_i;
+// arabian.cpp blitter_w: $E000-$E006, mirror $0FF8
+//   0 = plane / BSEL mask   1,2 = source ROM address (lo,hi)   3 = destination Y
+//   4 = destination X (<<2) 5 = size Y                         6 = size X, and writing it starts the blit
+reg [7:0] blit_reg [0:7];
+integer br_i;
 initial begin
-    for (vc_i = 0; vc_i < 11; vc_i = vc_i + 1)
-        video_control[vc_i] = 8'd0;
+    for (br_i = 0; br_i < 8; br_i = br_i + 1)
+        blit_reg[br_i] = 8'd0;
 end
 
-// Trigger for blitter execution (directly from Step 4)
-reg blitter_start = 0;
+wire cs_blit_wr = cs_blitter & ~n_wr;
+reg  cs_blit_wr_d = 1'b0;
+reg  blitter_start = 1'b0;
 
+// Edge-detected so one Z80 write produces exactly one register update and one start pulse,
+// however many master clocks the write strobe spans.
 always_ff @(posedge clk_12m) begin
-    blitter_start <= 0;
-    if(cs_vidctrl & ~n_wr) begin
-        if(cpu_A[3:0] <= 4'd10)
-            video_control[cpu_A[3:0]] <= cpu_Dout;
-        if(cpu_A[3:0] == 4'd5)
-            blitter_start <= 1;  // Writing to reg 5 triggers DMA blit
+    cs_blit_wr_d  <= cs_blit_wr;
+    blitter_start <= 1'b0;
+    if (cs_blit_wr & ~cs_blit_wr_d) begin
+        blit_reg[cpu_A[2:0]] <= cpu_Dout;
+        if (cpu_A[2:0] == 3'd6) blitter_start <= 1'b1;
     end
 end
 
-//------------------------------------------------------- Sound Latch ---------------------------------------------------------//
-
-reg [7:0] slatch = 8'd0;
-reg       slatch_wr_pulse = 0;
-always_ff @(posedge clk_12m) begin
-    slatch_wr_pulse <= 0;
-    if(cs_in0 & ~n_wr) begin
-        slatch <= cpu_Dout;
-        slatch_wr_pulse <= 1;
-    end
-end
-assign sound_latch = slatch;
-assign sound_latch_wr = slatch_wr_pulse;
-
-//------------------------------------------------------- Bootleg NMI ---------------------------------------------------------//
-
-// The bootleg has no MCU. It pulses NMI at reset to make the game boot.
-// MAME: m_maincpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
-// On original HW (mcu_present) the MB8841 drives NMI instead (see MCU block below) — this pulse is unused.
-reg [7:0] nmi_boot_cnt = 8'd0;
-reg n_nmi_boot = 1'b1;
-always_ff @(posedge clk_12m) begin
-    if(!reset) begin
-        nmi_boot_cnt <= 8'd255;
-        n_nmi_boot <= 1'b1;
-    end
-    else if(nmi_boot_cnt > 0 && cen_3m) begin
-        nmi_boot_cnt <= nmi_boot_cnt - 8'd1;
-        if(nmi_boot_cnt == 8'd32)
-            n_nmi_boot <= 1'b0;
-        else if(nmi_boot_cnt == 8'd16)
-            n_nmi_boot <= 1'b1;
-    end
-end
-
-// NMI source select: MB8841 (R3.3) on original HW, bootleg boot pulse otherwise. (mcu_nmi_n: MCU block below.)
-wire n_nmi = mcu_present ? mcu_nmi_n : n_nmi_boot;
+// NMI is not connected on this board (arabian.cpp memory map header).
+wire n_nmi = 1'b1;
 
 //-------------------------------------------------------- MB8841 MCU ---------------------------------------------------------//
-// Original Kangaroo (TVG-1-CPU-B, IC29) fits an MB8841 microcomputer used for protection. Per MAME
-// kangaroo.cpp:153 — besides the boot NMI it "acts like a timer to determine the intervals of the big ape
-// enemy appearing." Wiring mirrors kangaroo_mcu_state (kangaroo.cpp:455-504):
-//   CPU wr 0xEF00 -> main_data                                            (mcu_w)
-//   CPU rd 0xEF00 <- R0 port latch                                        (mcu_r)
-//   K port = 0xF & (R2.0 ? main_data : F) & (~R3.0 ? protrom[addr] : F)   (mcu_port_k_r)
-//   O port (oh:ol) -> protrom addr A0-A7 ; R3.1 -> A8 (A9,A10=GND)        (mcu_port_o_w / mcu_port_r_w)
-//   R3.3 -> main-CPU NMI                                                  (mcu_port_r_w)
-// MCU clock = 10MHz/4 = 2.5MHz (MAME MB8841(.., 10_MHz_XTAL/4)). Held in reset when not fitted.
-// darfpga mb88 has separate R in/out ports and no external drive on kangaroo's R pins, so tie in<-out
-// (MAME's read_r returns the output latch). Nothing drives the MCU /IRQ or /TC externally on kangaroo.
+// The SUN 8212 (an MB8841) is a shared-RAM coprocessor, not a protection oracle, and the
+// game cannot run without it: every joystick, button, start and SW2 bit reaches the Z80
+// only through this scan. Wiring mirrors arabian.cpp:
+//   O port + P[2:0]        -> shared RAM address A0-A10        (mcu_port_o_w / mcu_port_p_w)
+//   R0.1 low               -> write 0xF0|R3 to that address    (mcu_port_r0_w)
+//   R0.0 low               -> K reads the low nibble of RAM    (mcu_port_k_r)
+//   R0.0 high              -> K reads COM[i], i = lowest clear bit of {R2[1:0],R1}
+//   R0.3                   -> flip screen                      (mcu_port_r0_w)
+//   R port reads           -> the output latch, R0 with bit2 forced high ("RAM mode")
+//   AY port B b5 -> /IREQ, b4 -> /SRES                         (ay8910_portb_w)
+// There is no protection PROM on this board and the MCU does not drive the Z80's NMI.
 
-// timer ÷32 prescaler (MAME TIMER_PRESCALE=32) now lives INSIDE the mb88.sv wrapper
+// timer /32 prescaler (MAME TIMER_PRESCALE=32) lives INSIDE the mb88.sv wrapper
 // (generated from `ena`, no external ena_timer port anymore — see mb88.sv header).
-// MCU-DIV6-KANGAROO-2026-08-21: original below, restore by setting MCU_CEN_DIV = 1.
 // `ena` is one MB88 MACHINE CYCLE, not one instruction: verilator/mb88_testsuite
 // (in the PolePosition tree) diffs mb88_core against MAME and shows 1 ce for 1-cycle
 // opcodes and 2 ce for the 19 two-cycle ones (3D/3E/3F/60-67/68-6F), 0 cycle failures.
-// mb88.sv's /32 timer prescaler counts `ena` and matches MAME's "increment every 32
-// MACHINE CYCLES", confirming the same equivalence.
-// MAME clocks this MCU at 10_MHz_XTAL/4 = 2.5 MHz PIN clock (kangaroo.cpp:733) and
-// converts at (clocks+5)/6 (mb88xx.h:126). Arabian clocks the MB8841 at MAIN_OSC/3/2 =
-// 2 MHz PIN rate (arabian.cpp), so machine cycles are 2 MHz / 6 = 333.33 kHz. cen_2m is
-// the PIN rate; feeding it straight to `ena` would run the MCU -- and its timer -- 6x fast.
-// Same rule as PolePosition's HW-confirmed MCU-DIV6 and Kangaroo's 2.5 MHz / 6.
+// MAME converts pin clocks at (clocks+5)/6 (mb88xx.h:126). Arabian clocks the MB8841 at
+// MAIN_OSC/3/2 = 2 MHz PIN rate (arabian.cpp), so machine cycles are 2 MHz / 6 = 333.33 kHz.
+// cen_2m is the PIN rate; feeding it straight to `ena` would run the MCU -- and its timer
+// -- 6x fast. Same rule as PolePosition's HW-confirmed MCU-DIV6 and Kangaroo's 2.5 MHz / 6.
 localparam int MCU_CEN_DIV = 6;
 reg [2:0] mcu_div_cnt = 3'd0;
 always @(posedge clk_12m)
     if (cen_2m) mcu_div_cnt <= (mcu_div_cnt == MCU_CEN_DIV[2:0] - 3'd1) ? 3'd0 : mcu_div_cnt + 3'd1;
-wire mcu_ena       = cen_2m & ~pause & (mcu_div_cnt == MCU_CEN_DIV[2:0] - 3'd1);
-wire mcu_reset_n   = reset & mcu_present;     // hold in reset unless MB8841 is fitted
+wire mcu_ena = cen_2m & ~pause & (mcu_div_cnt == MCU_CEN_DIV[2:0] - 3'd1);
+
+// /SRES. The AY's registers come out of reset at 0, so the MCU stays held until the game
+// writes AY register 15 — same as the real board.
+wire mcu_reset_n = reset & ay_iob[4];
 
 wire [10:0] mcu_rom_addr;
 wire  [7:0] mcu_rom_q;
-wire  [3:0] mcu_ol, mcu_oh;
-wire  [7:0] mcu_o = {mcu_oh, mcu_ol};         // combined O port = protrom A0-A7
+wire  [3:0] mcu_ol, mcu_oh, mcu_p;
+wire  [7:0] mcu_o = {mcu_oh, mcu_ol};
 wire  [3:0] r0_out, r1_out, r2_out, r3_out;
 
-reg  [7:0] main_data = 8'd0;                  // CPU write to 0xEF00 (mcu_w)
-always_ff @(posedge clk_12m)
-    if (cs_mcu & ~n_wr) main_data <= cpu_Dout;
+//--- shared MB8841 RAM ($D000-$D7FF), port A = Z80, port B = MCU ---
+wire [10:0] mcu_ram_addr = {mcu_p[2:0], mcu_o};
+wire  [7:0] mcu_ram_din  = {4'hF, r3_out};
+wire  [7:0] mcu_ram_q;
+// R0.1 is the RAM write strobe and is level-driven, as on the board. r_out resets to
+// R0=0xF so it is inactive out of reset; qualified with mcu_reset_n regardless.
+wire        mcu_ram_we   = mcu_reset_n & ~r0_out[1];
 
-wire [10:0] protrom_addr = {2'b00, r3_out[1], mcu_o};   // A8 = R3.1, A0-A7 = O
-wire  [7:0] protrom_q;
+dpram_dc #(.widthad_a(11)) customram
+(
+    .clock_a(clk_12m),
+    .wren_a(cs_customram & ~n_wr),
+    .address_a(cpu_A[10:0]),
+    .data_a(cpu_Dout),
+    .q_a(customram_D),
 
-wire  [3:0] mcu_k = 4'hF
-                  & ( r2_out[0] ? main_data[3:0] : 4'hF)   // gated by R2.0
-                  & (~r3_out[0] ? protrom_q[3:0] : 4'hF);  // gated by ~R3.0
+    .clock_b(clk_12m),
+    .wren_b(mcu_ram_we),
+    .address_b(mcu_ram_addr),
+    .data_b(mcu_ram_din),
+    .q_b(mcu_ram_q)
+);
 
-wire mcu_nmi_n = ~r3_out[3];                  // R3.3 asserts NMI (active high) -> n_nmi low
-assign mcu_dout = mcu_present ? {4'h0, r0_out} : 8'h00;
+//--- K port: shared RAM low nibble, or one of six input banks ---
+// sel = {R2[1:0], R1}; the lowest clear bit selects its bank, none clear reads 0xF.
+wire [5:0] com_sel = {r2_out[1:0], r1_out};
+wire [3:0] com_val = ~com_sel[0] ? com0 :
+                     ~com_sel[1] ? com1 :
+                     ~com_sel[2] ? com2 :
+                     ~com_sel[3] ? com3 :
+                     ~com_sel[4] ? com4 :
+                     ~com_sel[5] ? com5 : 4'hF;
+// The RAM read is registered, but the MCU advances only every 36 master clocks while the
+// dpram settles in 2 — the address is stable for an entire machine cycle before K is sampled.
+wire [3:0] mcu_k = ~r0_out[0] ? mcu_ram_q[3:0] : com_val;
+
+//--- flip screen ---
+// MAME latches this only when the MCU writes R0. r_out resets to R0=0xF, so sampling R0.3
+// continuously would report "flipped" before the first write; latch it on an R0 change.
+reg [3:0] r0_out_d   = 4'hF;
+reg       flip_screen = 1'b0;
+always_ff @(posedge clk_12m) begin
+    if (!mcu_reset_n) begin
+        r0_out_d    <= 4'hF;
+        flip_screen <= 1'b0;
+    end
+    else begin
+        r0_out_d <= r0_out;
+        if (r0_out != r0_out_d) flip_screen <= r0_out[3];
+    end
+end
 
 mb88 mcu
 (
@@ -306,15 +313,17 @@ mb88 mcu
     .ena        (mcu_ena),
     .reset_n    (mcu_reset_n),
 
-    .r0_port_in (r0_out), .r1_port_in (r1_out), .r2_port_in (r2_out), .r3_port_in (r3_out),
+    // MAME's read_r returns the output latch; R0 additionally reads bit2 high ("RAM mode enabled")
+    .r0_port_in (r0_out | 4'b0100),
+    .r1_port_in (r1_out), .r2_port_in (r2_out), .r3_port_in (r3_out),
     .r0_port_out(r0_out), .r1_port_out(r1_out), .r2_port_out(r2_out), .r3_port_out(r3_out),
     .k_port_in  (mcu_k),
     .ol_port_out(mcu_ol), .oh_port_out(mcu_oh),
-    .p_port_out (),
+    .p_port_out (mcu_p),
 
     .stby_n     (1'b1),
     .tc_n       (1'b1),
-    .irq_n      (1'b1),
+    .irq_n      (ay_iob[5]),          // /IREQ from AY port B
     .sc_in_n    (1'b1),
     .si_n       (1'b1),
     .sc_out_n   (),
@@ -325,20 +334,12 @@ mb88 mcu
     .rom_data   (mcu_rom_q)
 );
 
-// MCU internal program ROM (2KB) — index 6, ioctl_addr[11]==0
+// MB8841 internal program ROM (2KB) — index 6
 dpram_dc #(.widthad_a(11), .width_a(8)) mcu_prog
 (
     .clock_a(clk_12m), .address_a(mcu_rom_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(mcu_rom_q),
     .clock_b(clk_12m), .address_b(ioctl_addr[10:0]), .data_b(ioctl_data),
-    .wren_b(mcurom_wr & ~ioctl_addr[11]), .q_b()
-);
-
-// MCU protection PROM (2KB) — index 6, ioctl_addr[11]==1
-dpram_dc #(.widthad_a(11), .width_a(8)) mcu_prot
-(
-    .clock_a(clk_12m), .address_a(protrom_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(protrom_q),
-    .clock_b(clk_12m), .address_b(ioctl_addr[10:0]), .data_b(ioctl_data),
-    .wren_b(mcurom_wr & ioctl_addr[11]), .q_b()
+    .wren_b(mcurom_wr), .q_b()
 );
 
 //-------------------------------------------------------- VBlank IRQ ----------------------------------------------------------//
@@ -365,47 +366,49 @@ end
 
 //-------------------------------------------------------- Video Timing --------------------------------------------------------//
 
-// TODO(video port): these counters are still Kangaroo's (640x260 at a 10 MHz dot clock)
-// and now run off a 12 MHz master, so the frame rate is wrong until Arabian timing lands.
-// arabian.cpp gives no set_raw() -- only 60 Hz, 256x256, visarea 0-255 x 11-244 -- and
-// there is no Arabian schematic in Useful Information/, so the real H/V totals still have
-// to be sourced (schematic, or derived from the VBLANK wait in arabian_maincpu.dasm).
+// 12 MHz master (XTAL on SP-237 sheet 8B), 6 MHz dot clock.
+//
+// H_TOTAL is read off the schematic: the horizontal chain (IC95 LS393, AV0-AV6') counts
+// 4-pixel GROUPS -- the LS95 shift registers on sheet 11B load once per 4 pixels -- so
+// 96 groups x 4 = 384 dots, giving 6 MHz / 384 = 15.625 kHz.
+//
+// V_TOTAL is NOT off the schematic: the vertical decode gates (IC93/94/110/92 -> /BLNK,
+// /INT, /VSYNC) are past what the scan resolves. 264 lines gives 59.19 Hz. Adjust here if
+// the frame rate proves wrong -- everything IRQ-paced (music tempo included) follows it.
+localparam int H_TOTAL = 384;
+localparam int V_TOTAL = 264;
 
-reg [9:0] h_cnt = 10'd0;  // 0-639
-reg [8:0] v_cnt = 9'd0;   // 0-259
+// Visible window matches MAME's visarea (0,255, 11,244): 256 across, 234 down.
+localparam int H_VIS_END  = 256;
+localparam int V_VIS_START = 11;
+localparam int V_VIS_END   = 245;   // exclusive
+localparam int HS_START = 272, HS_END = 304;
+localparam int VS_START = 250, VS_END = 253;
+
+reg [8:0] h_cnt = 9'd0;
+reg [8:0] v_cnt = 9'd0;
 
 always_ff @(posedge clk_12m) begin
-    if(!reset) begin
-        h_cnt <= 0;
-        v_cnt <= 0;
+    if (!reset) begin
+        h_cnt <= 9'd0;
+        v_cnt <= 9'd0;
     end
-    else begin
-        if(h_cnt == 10'd639) begin
-            h_cnt <= 0;
-            if(v_cnt == 9'd259)
-                v_cnt <= 0;
-            else
-                v_cnt <= v_cnt + 9'd1;
+    else if (cen_6m) begin
+        if (h_cnt == H_TOTAL[8:0] - 9'd1) begin
+            h_cnt <= 9'd0;
+            v_cnt <= (v_cnt == V_TOTAL[8:0] - 9'd1) ? 9'd0 : v_cnt + 9'd1;
         end
-        else
-            h_cnt <= h_cnt + 10'd1;
+        else h_cnt <= h_cnt + 9'd1;
     end
 end
 
-// Sync and blank generation
-// MAME visible: x = 0*2 to 256*2-1 = 0 to 511, y = 8 to 247
-// TOP-BOTTOM-FIX-2026-06-21: the scanout pixel pipeline is 2 clk_12m cycles deep (combinational addr ->
-// DPRAM addr-reg -> scan_word latch), so the pixel for h_cnt=H is output at H+2. hblank/hsync were
-// combinational off h_cnt, so the active window LED the data by 2 px -> 2 rows of pre-visible garbage at the
-// display TOP and the last 2 real rows pushed off the BOTTOM (h_cnt = display-vertical, ROT90). Delay
-// hblank/hsync by 2 cycles to align the window with the data. This is a latency match, NOT a directional
-// window shift (which wraps junk). v-axis has no such latency -> vblank/vsync stay combinational, and the
-// vblank IRQ keeps using the undelayed video_vblank (game timing untouched).
-// Original combinational lines below:
-// assign video_hblank = (h_cnt >= 10'd512);
-// assign video_hsync  = (h_cnt >= 10'd560) & (h_cnt < 10'd624);  // ~64 clocks
-wire video_hblank_raw = (h_cnt >= 10'd512);
-wire video_hsync_raw  = (h_cnt >= 10'd560) & (h_cnt < 10'd624);  // ~64 clocks
+// The scanout pixel pipeline is 2 clk_12m cycles deep (combinational address -> DPRAM
+// address register -> scan_word latch), so the pixel for h_cnt=H leaves at H+2. hblank and
+// hsync must be delayed to match or the active window leads the data. This is a latency
+// match, not a window shift. The v axis has no such latency, so vblank/vsync stay
+// combinational and the vblank IRQ keeps using the undelayed video_vblank.
+wire video_hblank_raw = (h_cnt >= H_VIS_END[8:0]);
+wire video_hsync_raw  = (h_cnt >= HS_START[8:0]) && (h_cnt < HS_END[8:0]);
 reg [1:0] hblank_sr = 2'b11;
 reg [1:0] hsync_sr  = 2'b00;
 always_ff @(posedge clk_12m) begin
@@ -414,8 +417,8 @@ always_ff @(posedge clk_12m) begin
 end
 assign video_hblank = hblank_sr[1];
 assign video_hsync  = hsync_sr[1];
-assign video_vblank = (v_cnt < 9'd8) | (v_cnt >= 9'd248);
-assign video_vsync  = (v_cnt >= 9'd252) & (v_cnt < 9'd256);     // ~4 lines
+assign video_vblank = (v_cnt <  V_VIS_START[8:0]) || (v_cnt >= V_VIS_END[8:0]);
+assign video_vsync  = (v_cnt >= VS_START[8:0]) && (v_cnt < VS_END[8:0]);
 
 //--------------------------------------------------------- Video RAM ----------------------------------------------------------//
 
@@ -461,330 +464,291 @@ dpram_dc #(.widthad_a(14), .width_a(16)) vram_hi
     .q_b(vram_hi_qb)
 );
 
-// DIAG-2026-06-18 PLANE-OFFSET FIX (the 2-month sprite-edge fringe). The scanout previously read plane A
-// and plane B through ONE shared port B (muxed on h_cnt[0]); with the 1-cycle DPRAM latency that left
-// plane A one COLUMN ahead of plane B at compositing → garbage at sprite EDGES (interiors fine). These two
-// MIRROR instances (written identically on port A) give plane B its own same-latency read port, so plane A
-// reads vram_lo/hi:B and plane B reads vram_lo2/hi2:B — aligned (recreates step4's combinational dual-read).
-wire [15:0] vram2_lo_qb, vram2_hi_qb;   // plane-B mirror scanout read data
-wire [13:0] vram_addr_b2;               // plane B scanout address (mirror port B)
+// Arabian keeps both planes in the SAME pixel byte (A = upper nibble, B = lower), so one
+// scanout read serves both. Kangaroo needed a second mirrored pair of RAMs because its two
+// planes came from different addresses; that pair is gone, halving VRAM back to 512 Kbit.
 
-dpram_dc #(.widthad_a(14), .width_a(16)) vram_lo2
-(
-    .clock_a(clk_12m), .address_a(vram_addr_a), .data_a(vram_lo_da), .wren_a(vram_we_a), .q_a(),
-    .clock_b(clk_12m), .address_b(vram_addr_b2), .data_b(16'd0), .wren_b(1'b0), .q_b(vram2_lo_qb)
-);
-dpram_dc #(.widthad_a(14), .width_a(16)) vram_hi2
-(
-    .clock_a(clk_12m), .address_a(vram_addr_a), .data_a(vram_hi_da), .wren_a(vram_we_a), .q_a(),
-    .clock_b(clk_12m), .address_b(vram_addr_b2), .data_b(16'd0), .wren_b(1'b0), .q_b(vram2_hi_qb)
-);
+//------------------------------------------------ VRAM Merge Functions --------------------------------------------------------//
 
-//------------------------------------------------ VRAM Expand/Mask Functions --------------------------------------------------//
+// A VRAM word is 4 pixels x 8 bits; pixel m sits in byte m. Each pixel byte is
+// {AZ,AR,AG,AB, BZ,BR,BG,BB} — plane A in the upper nibble, plane B in the lower.
 
-// MAME videoram_write expand logic — pure combinational functions
-// Expand 8-bit CPU data to 32-bit (DCBADCBA → 4 bytes)
-function [31:0] expand_data;
-    input [7:0] data;
-    reg [31:0] e;
+// arabian.cpp blit_area(): a source byte pair (offs, offs+0x4000) carries four pixels;
+// pixel m takes bit m and bit m+4 from each plane byte. Pixel value 8 is transparent.
+// blitter[0] bit0 writes plane A, bit2 writes plane B.
+function [31:0] blit_merge;
+    input [31:0] old_word;
+    input  [7:0] v1;          // low plane,  gfx $0000-$3FFF
+    input  [7:0] v2;          // high plane, gfx $4000-$7FFF
+    input        plane_a;
+    input        plane_b;
+    reg [31:0] w;
+    reg  [3:0] pix;
+    integer m;
     begin
-        e = 32'd0;
-        if (data[0]) e = e | 32'h00000055;
-        if (data[4]) e = e | 32'h000000aa;
-        if (data[1]) e = e | 32'h00005500;
-        if (data[5]) e = e | 32'h0000aa00;
-        if (data[2]) e = e | 32'h00550000;
-        if (data[6]) e = e | 32'h00aa0000;
-        if (data[3]) e = e | 32'h55000000;
-        if (data[7]) e = e | 32'haa000000;
-        expand_data = e;
+        w = old_word;
+        for (m = 0; m < 4; m = m + 1) begin
+            pix = {v2[m+4], v2[m], v1[m+4], v1[m]};
+            if (pix != 4'd8) begin
+                if (plane_a) w[8*m + 4 +: 4] = pix;
+                if (plane_b) w[8*m     +: 4] = pix;
+            end
+        end
+        blit_merge = w;
     end
 endfunction
 
-// Build layer mask from 4-bit mask value
-function [31:0] build_layermask;
-    input [3:0] mask;
-    reg [31:0] m;
+// arabian.cpp videoram_w(): the CPU writes four pixels of two bits each, pixel m taking
+// data[m] and data[m+4]. blitter[0] bits 3..0 each enable one bit-pair of the pixel byte:
+// bit3 -> [1:0], bit2 -> [3:2], bit1 -> [5:4], bit0 -> [7:6].
+// (MAME's AZ/AR-style comments on that function do not match the palette bit order; the
+// code does, and this follows the code.)
+function [31:0] cpu_merge;
+    input [31:0] old_word;
+    input  [7:0] data;
+    input  [3:0] mask;
+    reg [31:0] w;
+    reg  [1:0] pv;
+    integer m;
     begin
-        m = 32'd0;
-        if (mask[3]) m = m | 32'h30303030;
-        if (mask[2]) m = m | 32'hc0c0c0c0;
-        if (mask[1]) m = m | 32'h03030303;
-        if (mask[0]) m = m | 32'h0c0c0c0c;
-        build_layermask = m;
+        w = old_word;
+        for (m = 0; m < 4; m = m + 1) begin
+            pv = {data[m+4], data[m]};
+            if (mask[3]) w[8*m     +: 2] = pv;
+            if (mask[2]) w[8*m + 2 +: 2] = pv;
+            if (mask[1]) w[8*m + 4 +: 2] = pv;
+            if (mask[0]) w[8*m + 6 +: 2] = pv;
+        end
+        cpu_merge = w;
     end
 endfunction
 
-//------------------------------------------------------ Blitter ROM -----------------------------------------------------------//
+//------------------------------------------------------ Blitter GFX ROM -------------------------------------------------------//
 
-// 32KB blitter GFX ROM — one dpram_dc, port A = blitter read, port B = ioctl download (index 2).
-// Addressed as two 16KB planes: A14 selects low (0x0000-0x3FFF) or high (0x4000-0x7FFF).
-// A source byte pair (offs, offs+0x4000) supplies 4 pixels of 4 bits each.
-wire [7:0] blitrom_qa;
-reg  [14:0] blitrom_addr_a;
+// 32KB split into two 16KB planes so a source pair is fetched in a single read.
+wire [7:0]  gfx_lo_q, gfx_hi_q;
+reg  [13:0] gfx_addr;
 
-dpram_dc #(.widthad_a(15), .width_a(8)) blitrom_mem
+dpram_dc #(.widthad_a(14), .width_a(8)) gfx_plane_lo
 (
-    .clock_a(clk_12m),
-    .address_a(blitrom_addr_a),
-    .data_a(8'd0),
-    .wren_a(1'b0),
-    .q_a(blitrom_qa),
+    .clock_a(clk_12m), .address_a(gfx_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(gfx_lo_q),
+    .clock_b(clk_12m), .address_b(ioctl_addr[13:0]), .data_b(ioctl_data),
+    .wren_b(gfx_cs_i & ~ioctl_addr[14]), .q_b()
+);
 
-    .clock_b(clk_12m),
-    .address_b(ioctl_addr[14:0]),
-    .data_b(ioctl_data),
-    .wren_b(gfx_cs_i),
-    .q_b()
+dpram_dc #(.widthad_a(14), .width_a(8)) gfx_plane_hi
+(
+    .clock_a(clk_12m), .address_a(gfx_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(gfx_hi_q),
+    .clock_b(clk_12m), .address_b(ioctl_addr[13:0]), .data_b(ioctl_data),
+    .wren_b(gfx_cs_i & ioctl_addr[14]), .q_b()
 );
 
 //------------------------------------------------------ DMA Blitter -----------------------------------------------------------//
 
-// Pipelined read-modify-write state machine:
-//   IDLE     — wait for blitter_start or CPU VRAM write
-//   RMW_READ — present address to VRAM port A, wait 1 cycle for read data
-//   RMW_WRITE— compute new value, write back to VRAM port A
-//   BLIT_SETUP — load blitter parameters
-//   BLIT_READ  — present blitrom address, wait for ROM data
-//   BLIT_RMW_RD — present VRAM dest address, wait for old data
-//   BLIT_RMW_WR_LO — write low-half blit result to VRAM
-//   BLIT_RMW_RD2 — re-read VRAM for high-half blit
-//   BLIT_RMW_WR_HI — write high-half blit result, advance to next pixel
+// One iteration handles four pixels, which is exactly one VRAM word: the destination X is
+// always a multiple of 4, so base[0..3] never straddle a word. Both the blit and the direct
+// CPU write are therefore a plain read-modify-write of a single word.
+//
+// dpram_dc is altsyncram: registered address plus registered output = 2 clocks from
+// presenting an address to valid data. Each access is RD, RD2, WR (compute, assert wren),
+// COMMIT (wren high, address held) = 4 clocks per four pixels.
+//
+// MAME's loop is X outer, Y inner, the source advancing once per inner iteration:
+//   for (i = 0; i <= sx; i++, x += 4) for (j = 0; j <= sy; j++)
 
 localparam ST_IDLE        = 4'd0;
-localparam ST_CPU_RMW_RD  = 4'd1;
-localparam ST_CPU_RMW_WR  = 4'd2;
-localparam ST_BLIT_SETUP  = 4'd3;
-localparam ST_BLIT_ROMRD  = 4'd4;
-localparam ST_BLIT_RMW_RD = 4'd5;
-localparam ST_BLIT_RMW_WR_LO = 4'd6;
-localparam ST_BLIT_RMW_RD2   = 4'd7;
-localparam ST_BLIT_RMW_WR_HI = 4'd8;
-localparam ST_BLIT_NEXT   = 4'd9;
-localparam ST_CPU_RMW_RD2 = 4'd10;
-localparam ST_BLIT_ROWSTART = 4'd11;
-// DPRAM-LATENCY-FIX-2026-06-21: blitrom_mem is dpram_dc (altsyncram) = 2 clks addr-reg+read (the CPU RMW in
-// this file correctly waits 2). The blit ROM reads waited only 1 → LOW/HIGH captured a cycle early off the
-// shared port → 1-source-pixel skew between planes = the green/blue 1px fringe. These settle states fix it.
-localparam ST_BLIT_WAIT_LO  = 4'd12;
-localparam ST_BLIT_WAIT_HI  = 4'd13;
+localparam ST_CPU_RD      = 4'd1;
+localparam ST_CPU_RD2     = 4'd2;
+localparam ST_CPU_WR      = 4'd3;
+localparam ST_CPU_COMMIT  = 4'd4;
+localparam ST_BLIT_RD     = 4'd5;
+localparam ST_BLIT_RD2    = 4'd6;
+localparam ST_BLIT_WR     = 4'd7;
+localparam ST_BLIT_COMMIT = 4'd8;
 
-reg [3:0]  vram_state = ST_IDLE;
-reg [7:0]  blit_width;
-reg [7:0]  blit_height;
-reg [7:0]  blit_x_cnt;
-reg [7:0]  blit_y_cnt;
-reg [15:0] blit_cur_src;
-reg [15:0] blit_cur_dst;
-reg [7:0]  blit_adj_mask;
-// BLITQUEUE-2026-08-21: MAME's blitter_execute() is SYNCHRONOUS inside the $E805
-// write, so software can never issue a blit "too early". Ours takes ~1200 clocks
-// for a 28x7 sprite and previously only accepted a start in ST_IDLE, so a trigger
-// arriving mid-blit was SILENTLY DROPPED. The glove-less overdraw at $111A is
-// issued ~15 instructions after the body blit at $1102 and was dropped on 100% of
-// frames -- which is why stolen gloves never disappeared. Queue one trigger
-// instead. (Stalling the CPU with WAIT_n was tried first and starved the Z80 to
-// ~3% speed, because this blitter is ~6 clocks/pixel.)
-reg        blit_pend = 0;
-reg [7:0]  pend_w, pend_h, pend_mask;
-reg [15:0] pend_src, pend_dst;
-reg [7:0]  blit_rom_data_lo;
-reg [7:0]  blit_rom_data_hi;
+reg [3:0] vram_state = ST_IDLE;
 
-// Registered copies of CPU write params (captured in IDLE)
-reg [13:0] cpu_wr_addr;
-reg [7:0]  cpu_wr_data;
-reg [3:0]  cpu_wr_mask;
+// blit parameters, snapshotted at the trigger
+reg        blit_plane_a, blit_plane_b;
+reg [15:0] blit_src;
+reg  [7:0] blit_x, blit_y;
+reg  [7:0] blit_sx, blit_sy;
+reg  [7:0] blit_i, blit_j;
+reg        blit_active = 1'b0;   // a blit is in progress; the Z80 is held for its duration
+reg        blit_last   = 1'b0;   // this iteration is the last one
+reg        blit_resume = 1'b0;   // a CPU write was serviced mid-blit; go back afterwards
 
-// Read-modify-write intermediates
-reg [31:0] rmw_old_word;
-reg [31:0] rmw_new_word;
-reg [31:0] rmw_expdata;
-reg [31:0] rmw_layermask;
+// A trigger arriving mid-blit must not be dropped — the Kangaroo BLITQUEUE lesson.
+reg        blit_pend = 1'b0;
+reg  [7:0] pend_plane, pend_y, pend_x, pend_sy, pend_sx;
+reg [15:0] pend_src;
+
+// CPU bitmap writes are serviced between blit iterations, so one can wait at most a single
+// iteration (4 clocks) — well inside the Z80's minimum spacing between consecutive writes.
+wire       cpu_vram_wr = cs_videoram & ~n_wr;
+reg        cpu_vram_wr_d = 1'b0;
+wire       cpu_vram_wr_edge = cpu_vram_wr & ~cpu_vram_wr_d;
+reg        cpu_pend = 1'b0;
+reg [13:0] cpu_addr_l;
+reg  [7:0] cpu_data_l;
+reg  [3:0] cpu_mask_l;
+
+// blit start parameters, from the live registers or the queued snapshot
+wire  [7:0] start_plane = blit_pend ? pend_plane : blit_reg[0];
+wire [15:0] start_src   = blit_pend ? pend_src   : {blit_reg[2], blit_reg[1]};
+wire  [7:0] start_y     = blit_pend ? pend_y     : blit_reg[3];
+wire  [7:0] start_x     = blit_pend ? pend_x     : {blit_reg[4][5:0], 2'b00};
+wire  [7:0] start_sy    = blit_pend ? pend_sy    : blit_reg[5];
+wire  [7:0] start_sx    = blit_pend ? pend_sx    : blit_reg[6];
+
+// What ST_IDLE will actually consume this cycle. A CPU bitmap write wins over a blit, so a
+// trigger arriving while idle-but-servicing-a-write is NOT started -- it has to be queued.
+// Keying the queue off "not idle" missed that case and dropped the trigger outright.
+wire idle_takes_cpu   = (vram_state == ST_IDLE) && (cpu_vram_wr_edge || cpu_pend);
+wire idle_starts_blit = (vram_state == ST_IDLE) && !idle_takes_cpu && (blitter_start || blit_pend);
+wire trigger_consumed = idle_starts_blit && !blit_pend;   // a live trigger started right now
+
+// destination word of the current inner step
+wire  [7:0] blit_row   = blit_y + blit_j;
+wire [13:0] blit_vaddr = {blit_x[7:2], blit_row};
+
+wire [31:0] vram_word_a  = {vram_hi_qa, vram_lo_qa};
+wire [31:0] cpu_merged   = cpu_merge (vram_word_a, cpu_data_l, cpu_mask_l);
+wire [31:0] blit_merged  = blit_merge(vram_word_a, gfx_lo_q, gfx_hi_q, blit_plane_a, blit_plane_b);
+
+assign blit_active_w = blit_active;
 
 always_ff @(posedge clk_12m) begin
+    cpu_vram_wr_d <= cpu_vram_wr;
+
     if (!reset) begin
-        vram_state <= ST_IDLE;
-        vram_we_a <= 0;
+        vram_state  <= ST_IDLE;
+        vram_we_a   <= 1'b0;
+        blit_pend   <= 1'b0;
+        cpu_pend    <= 1'b0;
+        blit_resume <= 1'b0;
+        blit_last   <= 1'b0;
+        blit_active <= 1'b0;
     end
     else begin
-        vram_we_a <= 0;  // Default: no write
+        vram_we_a <= 1'b0;
 
-        // BLITQUEUE-2026-08-21: a trigger arriving mid-blit cannot start now, so
-        // snapshot its registers and run it when the current blit finishes.
-        // Kept in THIS always block so blit_pend has a single driver (Quartus).
-        if (blitter_start && vram_state != ST_IDLE) begin
-            blit_pend <= 1'b1;
-            pend_w    <= video_control[4];
-            pend_h    <= video_control[5];
-            pend_src  <= {video_control[1], video_control[0]};
-            pend_dst  <= {video_control[3], video_control[2]};
-            pend_mask <= video_control[8];
+        // Queue any trigger not started this very cycle. If a queued blit starts while a new
+        // trigger arrives, the new one replaces it in the queue and nothing is lost.
+        if (blitter_start && !trigger_consumed) begin
+            blit_pend  <= 1'b1;
+            pend_plane <= blit_reg[0];
+            pend_src   <= {blit_reg[2], blit_reg[1]};
+            pend_y     <= blit_reg[3];
+            pend_x     <= {blit_reg[4][5:0], 2'b00};
+            pend_sy    <= blit_reg[5];
+            pend_sx    <= blit_reg[6];
+        end
+        else if (idle_starts_blit && blit_pend) blit_pend <= 1'b0;
+
+        // queue a CPU bitmap write that cannot start right now
+        if (cpu_vram_wr_edge && vram_state != ST_IDLE) begin
+            cpu_pend   <= 1'b1;
+            cpu_addr_l <= cpu_A[13:0];
+            cpu_data_l <= cpu_Dout;
+            cpu_mask_l <= blit_reg[0][3:0];
         end
 
         case (vram_state)
             ST_IDLE: begin
-                if (blitter_start || blit_pend) begin
-                    // BLITQUEUE-2026-08-21: take a queued trigger if one is waiting.
-                    blit_width   <= blitter_start ? video_control[4] : pend_w;
-                    blit_height  <= blitter_start ? video_control[5] : pend_h;
-                    blit_cur_src <= blitter_start ? {video_control[1], video_control[0]} : pend_src;
-                    blit_cur_dst <= blitter_start ? {video_control[3], video_control[2]} : pend_dst;
-                    blit_x_cnt  <= 0;
-                    blit_y_cnt  <= 0;
-                    blit_adj_mask <= blitter_start ? video_control[8] : pend_mask;
-                    if (!blitter_start) blit_pend <= 1'b0;   // consumed the queued one
-                    vram_state <= ST_BLIT_SETUP;
+                if (cpu_vram_wr_edge) begin
+                    cpu_addr_l  <= cpu_A[13:0];
+                    cpu_data_l  <= cpu_Dout;
+                    cpu_mask_l  <= blit_reg[0][3:0];
+                    vram_addr_a <= cpu_A[13:0];
+                    vram_state  <= ST_CPU_RD;
                 end
-                else if (cs_videoram & ~n_wr) begin
-                    // CPU VRAM write — start RMW cycle
-                    cpu_wr_addr <= cpu_A[13:0];
-                    cpu_wr_data <= cpu_Dout;
-                    cpu_wr_mask <= video_control[8][3:0];
-                    vram_addr_a <= cpu_A[13:0];  // Present read address
-                    vram_state <= ST_CPU_RMW_RD;
+                else if (cpu_pend) begin
+                    cpu_pend    <= 1'b0;
+                    vram_addr_a <= cpu_addr_l;
+                    vram_state  <= ST_CPU_RD;
+                end
+                else if (blitter_start || blit_pend) begin
+                    blit_plane_a <= start_plane[0];
+                    blit_plane_b <= start_plane[2];
+                    blit_src     <= start_src;
+                    blit_y       <= start_y;
+                    blit_x       <= start_x;
+                    blit_sy      <= start_sy;
+                    blit_sx      <= start_sx;
+                    blit_i       <= 8'd0;
+                    blit_j       <= 8'd0;
+                    blit_active  <= 1'b1;
+
+                    gfx_addr    <= start_src[13:0];
+                    vram_addr_a <= {start_x[7:2], start_y};
+                    vram_state  <= ST_BLIT_RD;
                 end
             end
 
-            //--- CPU VRAM write (3-cycle RMW: addr → wait → read+compute → write) ---
-            ST_CPU_RMW_RD: begin
-                // Address was presented last cycle. dpram output will be valid NEXT cycle.
-                // Pre-compute expand/mask while waiting for RAM.
-                rmw_expdata  <= expand_data(cpu_wr_data);
-                rmw_layermask <= build_layermask(cpu_wr_mask);
-                vram_state <= ST_CPU_RMW_RD2;
+            //---- direct CPU write into the bitmap ----
+            ST_CPU_RD:  vram_state <= ST_CPU_RD2;
+            ST_CPU_RD2: vram_state <= ST_CPU_WR;
+            ST_CPU_WR: begin
+                vram_lo_da <= cpu_merged[15:0];
+                vram_hi_da <= cpu_merged[31:16];
+                vram_we_a  <= 1'b1;
+                vram_state <= ST_CPU_COMMIT;
+            end
+            ST_CPU_COMMIT: begin
+                // wren is high through this state, so the address must not move yet
+                if (blit_resume) begin
+                    blit_resume <= 1'b0;
+                    gfx_addr    <= blit_src[13:0];
+                    vram_addr_a <= blit_vaddr;
+                    vram_state  <= ST_BLIT_RD;
+                end
+                else vram_state <= ST_IDLE;
             end
 
-            ST_CPU_RMW_RD2: begin
-                // NOW the dpram output is valid — latch it
-                rmw_old_word <= {vram_hi_qa, vram_lo_qa};
-                vram_state <= ST_CPU_RMW_WR;
-            end
+            //---- blit ----
+            ST_BLIT_RD:  vram_state <= ST_BLIT_RD2;
+            ST_BLIT_RD2: vram_state <= ST_BLIT_WR;
+            ST_BLIT_WR: begin
+                vram_lo_da <= blit_merged[15:0];
+                vram_hi_da <= blit_merged[31:16];
+                vram_we_a  <= 1'b1;
 
-            ST_CPU_RMW_WR: begin
-                rmw_new_word = (rmw_old_word & ~rmw_layermask) | (rmw_expdata & rmw_layermask);
-                vram_addr_a <= cpu_wr_addr;
-                vram_lo_da <= rmw_new_word[15:0];
-                vram_hi_da <= rmw_new_word[31:16];
-                vram_we_a  <= 1;
-                vram_state <= ST_IDLE;
-            end
+                blit_src  <= blit_src + 16'd1;
+                blit_last <= (blit_j == blit_sy) && (blit_i == blit_sx);
 
-            //--- Blitter DMA ---
-            ST_BLIT_SETUP: begin
-                // Adjust mask per MAME: OR top/bottom 2-bit pairs during DMA
-                if (blit_adj_mask[3:2] != 0) blit_adj_mask[3:2] <= 2'b11;
-                if (blit_adj_mask[1:0] != 0) blit_adj_mask[1:0] <= 2'b11;
-                // Start first pixel: present low-half ROM addr
-                blitrom_addr_a <= {1'b0, blit_cur_src[13:0]};
-                // DPRAM-LATENCY-FIX-2026-06-21: was "vram_state <= ST_BLIT_ROMRD;" (1-cycle settle — TOO EARLY).
-                vram_state <= ST_BLIT_WAIT_LO;
-            end
+                if (blit_j == blit_sy) begin
+                    blit_j <= 8'd0;
+                    blit_x <= blit_x + 8'd4;
+                    blit_i <= blit_i + 8'd1;
+                end
+                else blit_j <= blit_j + 8'd1;
 
-            // DPRAM-LATENCY-FIX-2026-06-21: NEW settle state — LOW-half ROM needs 2 clks (addr-reg + read), like
-            // the CPU RMW. Without it blit_rom_data_lo was captured a cycle early off the shared blitrom port,
-            // landing the LOW plane 1 source-pixel off from HIGH = the green/blue 1px fringe.
-            ST_BLIT_WAIT_LO: begin
-                vram_state <= ST_BLIT_ROMRD;
+                vram_state <= ST_BLIT_COMMIT;
             end
-
-            ST_BLIT_ROMRD: begin
-                // DPRAM-LATENCY-FIX-2026-06-21: LOW-half ROM data now valid (2 clks after present). Capture it,
-                // then present HIGH-half addr + the VRAM read addr (both captured 2 clks later in ST_BLIT_RMW_RD).
-                blit_rom_data_lo <= blitrom_qa;
-                blitrom_addr_a <= {1'b1, blit_cur_src[13:0]};
-                vram_addr_a <= (blit_cur_dst[13:0] + {6'd0, blit_x_cnt}) & 14'h3FFF;
-                // DPRAM-LATENCY-FIX-2026-06-21: was "vram_state <= ST_BLIT_RMW_RD;" (1-cycle — TOO EARLY).
-                vram_state <= ST_BLIT_WAIT_HI;
-            end
-
-            // DPRAM-LATENCY-FIX-2026-06-21: NEW settle state — HIGH-half ROM + VRAM reads need 2 clks.
-            ST_BLIT_WAIT_HI: begin
-                vram_state <= ST_BLIT_RMW_RD;
-            end
-
-            ST_BLIT_RMW_RD: begin
-                // DPRAM-LATENCY-FIX-2026-06-21: HIGH-half ROM AND VRAM read-back both valid now (2 clks after
-                // presented in ST_BLIT_ROMRD). Both match the SAME source pixel as LOW → planes aligned.
-                blit_rom_data_hi <= blitrom_qa;
-                rmw_old_word     <= {vram_hi_qa, vram_lo_qa};
-                vram_state <= ST_BLIT_RMW_WR_LO;
-            end
-
-            // DPRAM-LATENCY-FIX-2026-06-21: ST_BLIT_RMW_RD2 no longer reached (VRAM capture merged above). Kept.
-            ST_BLIT_RMW_RD2: begin
-                rmw_old_word <= {vram_hi_qa, vram_lo_qa};
-                vram_state <= ST_BLIT_RMW_WR_LO;
-            end
-
-            ST_BLIT_RMW_WR_LO: begin
-                // clear pixel first
-                rmw_expdata   = 32'h00000000;
-                rmw_layermask = build_layermask(blit_adj_mask[3:0]);
-                // Apply low-half blit (mask & 0x0A)
-                //
-                // NOTE 2026-05-16: this pairing is INVERTED from MAME's
-                // kangaroo.cpp:344-345 (MAME pairs LOW↔0x05, HIGH↔0x0a).
-                // We swapped to match MAME and the test showed: colors went
-                // way off across all graphics + sprite trails turned BLACK
-                // instead of green (clear started working but background
-                // restoration broke). Diagnosis: the mismatch here is being
-                // consumed by a COMPENSATING WRONGNESS elsewhere in the
-                // pipeline (compositing? palette LUT? plane extraction at
-                // scanout?), and the two wrongs make a right visually.
-                // Reverting until we can ground-truth against MAME and find
-                // the second mismatch. See
-                // Claude/sprite_artifacting_audit_2026-05-16.md.
-                rmw_expdata   = expand_data(blit_rom_data_lo);
-                // PAIRING-MAME-MATCH-2026-06-21: with the DPRAM timing skew fixed, match MAME kangaroo.cpp:344
-                // (LOW-half ROM <-> mask & 0x05). The inverted pairing only looked right because the skew was
-                // compensating; now it's exposed. Original (inverted) line below:
-                // rmw_layermask = build_layermask(blit_adj_mask[3:0] & 4'b1010);
-                rmw_layermask = build_layermask(blit_adj_mask[3:0] & 4'b0101);
-                rmw_new_word  = (rmw_old_word & ~rmw_layermask) | (rmw_expdata & rmw_layermask);
-                // Now apply high-half blit (mask & 0x05) on top of that
-                rmw_expdata   = expand_data(blit_rom_data_hi);
-                // PAIRING-MAME-MATCH-2026-06-21: HIGH-half ROM <-> mask & 0x0a per MAME kangaroo.cpp:345.
-                // Original (inverted) line below:
-                // rmw_layermask = build_layermask(blit_adj_mask[3:0] & 4'b0101);
-                rmw_layermask = build_layermask(blit_adj_mask[3:0] & 4'b1010);
-                rmw_new_word  = (rmw_new_word & ~rmw_layermask) | (rmw_expdata & rmw_layermask);
-                // Write back
-                vram_addr_a <= (blit_cur_dst[13:0] + {6'd0, blit_x_cnt}) & 14'h3FFF;
-                vram_lo_da  <= rmw_new_word[15:0];
-                vram_hi_da  <= rmw_new_word[31:16];
-                vram_we_a   <= 1;
-                vram_state  <= ST_BLIT_NEXT;
-            end
-
-            ST_BLIT_NEXT: begin
-                // Advance to next pixel
-                blit_cur_src <= blit_cur_src + 16'd1;
-                if (blit_x_cnt == blit_width) begin
-                    blit_x_cnt <= 0;
-                    if (blit_y_cnt == blit_height) begin
-                        vram_state <= ST_IDLE;  // Done
+            ST_BLIT_COMMIT: begin
+                // wren is high through this state; blit_src / blit_x / blit_j already point
+                // at the next iteration, so blit_vaddr is the next destination word.
+                if (blit_last) begin
+                    blit_active <= 1'b0;
+                    if (cpu_pend) begin
+                        cpu_pend    <= 1'b0;
+                        vram_addr_a <= cpu_addr_l;
+                        vram_state  <= ST_CPU_RD;
                     end
-                    else begin
-                        blit_y_cnt  <= blit_y_cnt + 8'd1;
-                        blit_cur_dst <= blit_cur_dst + 16'd256;
-                        // Start next row: read ROM for first pixel
-                        blitrom_addr_a <= {1'b0, (blit_cur_src + 16'd1) & 16'h3FFF};
-                        vram_state <= ST_BLIT_ROWSTART;
-                    end
+                    else vram_state <= ST_IDLE;
+                end
+                else if (cpu_pend) begin
+                    cpu_pend    <= 1'b0;
+                    blit_resume <= 1'b1;
+                    vram_addr_a <= cpu_addr_l;
+                    vram_state  <= ST_CPU_RD;
                 end
                 else begin
-                    blit_x_cnt <= blit_x_cnt + 8'd1;
-                    // Start next pixel: present LOW-half ROM addr
-                    blitrom_addr_a <= {1'b0, (blit_cur_src + 16'd1) & 16'h3FFF};
-                    // DPRAM-LATENCY-FIX-2026-06-21: was "vram_state <= ST_BLIT_ROMRD;" (1-cycle — TOO EARLY).
-                    vram_state <= ST_BLIT_WAIT_LO;
+                    gfx_addr    <= blit_src[13:0];
+                    vram_addr_a <= blit_vaddr;
+                    vram_state  <= ST_BLIT_RD;
                 end
-            end
-
-            ST_BLIT_ROWSTART: begin
-                // blit_cur_dst is now settled — proceed to ROM read
-                vram_state <= ST_BLIT_ROMRD;
             end
 
             default: vram_state <= ST_IDLE;
@@ -794,107 +758,70 @@ end
 
 //----------------------------------------------- Pixel Compositing (screen_update) --------------------------------------------//
 
-// MAME screen_update variables derived from video_control registers
-wire [7:0] scrolly = video_control[6];
-wire [7:0] scrollx = video_control[7];
-wire [2:0] maska = (video_control[10] & 8'h28) >> 3;   // MAME exact
-wire [2:0] maskb =  video_control[10][2:0];
-wire [7:0] xora = video_control[9][5] ? 8'hFF : 8'h00;
-wire [7:0] xorb = video_control[9][4] ? 8'hFF : 8'h00;
-wire       enaa = video_control[9][3];
-wire       enab = video_control[9][2];
-wire       pria = ~video_control[9][1];
-wire       prib = ~video_control[9][0];
+// arabian.cpp screen_update is a straight bitmap scanout: the pen IS the pixel byte, with
+// the five AY port-A control bits forming the upper half of a 13-bit colour-table index:
+//   pen = ((video_control >> 3) << 8) | pixel_byte
+// There is no scroll, no priority latch and no KOS1 half-pixel mask on this board.
 
-// Current scanout position (used for address)
-wire [8:0] scan_x = h_cnt[9:1];
-wire [7:0] scan_y = v_cnt[7:0];
+// Scanout address is combinational off the counters; the DPRAM address register and the
+// scan_word latch supply the two pipeline stages, and the slice index is delayed by the
+// same two so it lines up with the word it selects.
+wire [7:0] eff_x = h_cnt[7:0];
+wire [7:0] eff_y = v_cnt[7:0];
 
-// 2026-06-18: scanout left at NATIVE (full content + correct size). HW results that rule out the simple
-// knobs: doubling (src_col=h_cnt[9:2]) => top-half magnified; doubling + halved extent (hblank 256) =>
-// only 1/4 of screen. So the doubling<->display-extent relationship here is NOT understood — needs a full
-// pixel-path trace (h_cnt/v_cnt -> ce_pix -> arcade_video -> screen_rotate -> FB) before any more scanout
-// edits. is_odd=h_cnt[1] interleave + pixb_raw priority kept (interleave present, just not MAME-clean).
-wire [7:0] effxa = scrollx + (scan_x[7:0] ^ xora);
-wire [7:0] effya = scrolly + (scan_y ^ xora);
-wire [7:0] effxb = scan_x[7:0] ^ xorb;
-wire [7:0] effyb = scan_y ^ xorb;
+assign vram_addr_b = {eff_x[7:2], eff_y};
 
-// Scanout pipeline — DIAG-2026-06-18 PLANE-OFFSET FIX. Read BOTH planes EVERY cycle on their own
-// same-latency ports (plane A = vram_lo/hi:B, plane B = vram_lo2/hi2:B) instead of alternating ONE
-// shared port on h_cnt[0]. The old alternating read left plane A one COLUMN ahead of plane B at the
-// compositing point → garbage-colored sprite EDGES (the 2-month fringe / "green poop"). Now both planes
-// are ALIGNED to the same column. Slices are delayed one cycle to match the 1-cycle DPRAM read latency,
-// identically for both planes. (Image may shift ~1px horizontally vs before — cosmetic; adjust hblank if so.)
-
-reg [31:0] scan_word_a, scan_word_b;
-reg [1:0]  scan_effxa_slice, scan_effxb_slice;
-
-wire [13:0] scan_addr_a_w = {effxa[7:2], effya};
-wire [13:0] scan_addr_b_w = {effxb[7:2], effyb};
-
-assign vram_addr_b  = scan_addr_a_w;   // plane A read port (vram_lo/hi:B)
-assign vram_addr_b2 = scan_addr_b_w;   // plane B read port (vram_lo2/hi2:B)
-
-reg [1:0] effxa_slice_hold, effxb_slice_hold;
-
+reg  [1:0] slice_hold = 2'd0;
+reg  [1:0] slice_out  = 2'd0;
+reg [31:0] scan_word  = 32'd0;
 always_ff @(posedge clk_12m) begin
-    // capture this cycle's slice indices (for the addresses presented this cycle)
-    effxa_slice_hold <= effxa[1:0];
-    effxb_slice_hold <= effxb[1:0];
-    // latch both planes together: q_b holds data for the address presented LAST cycle (1-cycle DPRAM
-    // latency), and the matching last-cycle slice → plane A and plane B aligned to the SAME column.
-    scan_word_a      <= {vram_hi_qb,  vram_lo_qb};
-    scan_word_b      <= {vram2_hi_qb, vram2_lo_qb};
-    scan_effxa_slice <= effxa_slice_hold;
-    scan_effxb_slice <= effxb_slice_hold;
+    slice_hold <= eff_x[1:0];
+    scan_word  <= {vram_hi_qb, vram_lo_qb};
+    slice_out  <= slice_hold;
 end
 
-// Extract pixel bytes from latched 32-bit words
-wire [7:0] vram_slice_a = (scan_effxa_slice == 2'd0) ? scan_word_a[7:0] :
-                          (scan_effxa_slice == 2'd1) ? scan_word_a[15:8] :
-                          (scan_effxa_slice == 2'd2) ? scan_word_a[23:16] :
-                                                       scan_word_a[31:24];
+wire [7:0] pix_byte = (slice_out == 2'd0) ? scan_word[7:0]   :
+                      (slice_out == 2'd1) ? scan_word[15:8]  :
+                      (slice_out == 2'd2) ? scan_word[23:16] :
+                                            scan_word[31:24];
 
-wire [7:0] vram_slice_b = (scan_effxb_slice == 2'd0) ? scan_word_b[7:0] :
-                          (scan_effxb_slice == 2'd1) ? scan_word_b[15:8] :
-                          (scan_effxb_slice == 2'd2) ? scan_word_b[23:16] :
-                                                       scan_word_b[31:24];
+// AY port A: b7 ENA, b6 ENB, b5 /ABHF, b4 /AGHF, b3 /ARHF
+wire ena  =  ay_ioa[7];
+wire enb  =  ay_ioa[6];
+wire abhf = ~ay_ioa[5];
+wire aghf = ~ay_ioa[4];
+wire arhf = ~ay_ioa[3];
 
-wire [3:0] pixa_raw = vram_slice_a[3:0];   // Plane A = low nibble
-wire [3:0] pixb_raw = vram_slice_b[7:4];   // Plane B = high nibble
+// Pixel byte: plane A in the upper nibble, plane B in the lower, each {Z,R,G,B}
+wire az = pix_byte[7], ar = pix_byte[6], ag = pix_byte[5], ab = pix_byte[4];
+wire bz = pix_byte[3], br = pix_byte[2], bg = pix_byte[1], bb = pix_byte[0];
 
-// Priority compositing (MAME logic)
-// Even pixels (first of pair): full brightness, no KOS1 masking
-// Odd pixels (second of pair): apply KOS1 color mask for Z=0 pixels
-// DIAG-2026-06-18: at the NEW 10MHz pixel sampling (arcade_video ce_pix_2x), arcade_video samples the
-// core's RGB once per h_cnt, so consecutive display pixels share scan_x (= the doubling) and h_cnt[0]
-// is the doubled-pixel parity → full / dimmed-copy alternation = MAME interleave. (Was h_cnt[1], the
-// parity for the old 5MHz/256px path.) Source stays native scan_x = full 256-column content.
-wire is_odd_pixel = h_cnt[0];
+wire planea = (az | ar | ag | ab) & ena;
 
-// (2026-06-18: plane-hold "bleed fix" REVERTED — had zero effect on HW, so the bleed is NOT plane-A/B
-//  misalignment. Back to the straight KOS1 masking. Bleed cause now suspected = the scaler interpolating
-//  the fine interleave pattern in the horizontally-stretched THIN framebuffer → fix is the WIDTH/aspect.)
-wire [3:0] pixa_masked = (is_odd_pixel && !(pixa_raw[3])) ? (pixa_raw & {1'b0, maska}) : pixa_raw;
-wire [3:0] pixb_masked = (is_odd_pixel && !(pixb_raw[3])) ? (pixb_raw & {1'b0, maskb}) : pixb_raw;
+// Colour derivation, arabian.cpp palette(). Confirmed against SP-237 sheet 11B: plane B
+// reaches red (BZ/BR via IC118) and green (BG via IC118, BB via IC120) but never blue --
+// the blue driver TR6 is fed only from the plane-A path.
+wire rhi   = planea ? ar : (enb ? bz : 1'b0);
+wire rlo   = planea ? ((~arhf & az) ? 1'b0 : ar) : (enb ? br : 1'b0);
+wire ghi   = planea ? ag : (enb ? bb : 1'b0);
+wire glo   = planea ? ((~aghf & az) ? 1'b0 : ag) : (enb ? bg : 1'b0);
+wire bhi   = ab;
+wire bbase = (~abhf & az) ? 1'b0 : ab;
 
-wire [3:0] pixa_final = is_odd_pixel ? pixa_masked : pixa_raw;
-wire [3:0] pixb_final = is_odd_pixel ? pixb_masked : pixb_raw;
+// Two bits per channel through the resistor DAC. MAME's weights match the sheet-11B
+// network: red 1.2K/1.8K = 1.5 (153/102), green 750R/1.2K = 1.6 (156/99), 510R pull-ups.
+//   r = rhi*115 + rlo*77 + 63,  g = ghi*117 + glo*75 + 63,  b = bhi*192 + bbase*63
+wire [7:0] pal_r = ({rhi,rlo}     == 2'b00) ? 8'd0 : ({rhi,rlo}     == 2'b01) ? 8'd140 :
+                   ({rhi,rlo}     == 2'b10) ? 8'd178 : 8'd255;
+wire [7:0] pal_g = ({ghi,glo}     == 2'b00) ? 8'd0 : ({ghi,glo}     == 2'b01) ? 8'd138 :
+                   ({ghi,glo}     == 2'b10) ? 8'd180 : 8'd255;
+wire [7:0] pal_b = ({bhi,bbase}   == 2'b00) ? 8'd0 : ({bhi,bbase}   == 2'b01) ? 8'd63  :
+                   ({bhi,bbase}   == 2'b10) ? 8'd192 : 8'd255;
 
-reg [2:0] final_color;
-always_comb begin
-    final_color = 3'd0;
-    if (enaa && (pria || pixb_raw == 0))
-        final_color = final_color | pixa_final[2:0];
-    if (enab && (prib || pixa_final == 0))
-        final_color = final_color | pixb_final[2:0];
-end
+wire blanked = video_hblank | video_vblank;
 
-// Output — BGR 3-bit palette (MAME: PALETTE(config, m_palette, palette_device::BGR_3BIT))
-wire active_video = ~video_hblank & ~video_vblank;
-assign video_r = active_video ? {final_color[2], final_color[2], final_color[2]} : 3'd0;
-assign video_g = active_video ? {final_color[1], final_color[1], final_color[1]} : 3'd0;
-assign video_b = active_video ? {final_color[0], final_color[0]} : 2'd0;
+assign video_r = blanked ? 8'd0 : pal_r;
+assign video_g = blanked ? 8'd0 : pal_g;
+assign video_b = blanked ? 8'd0 : pal_b;
 
 endmodule

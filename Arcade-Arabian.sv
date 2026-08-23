@@ -225,9 +225,6 @@ localparam CONF_STR = {
 	"P1OP,Pause when OSD is open,On,Off;",
 	"P1OQ,Dim video after 10s,On,Off;",
 	"-;",
-	"P2,High Score Options;",
-	"P2OR,Autosave Hiscores,Off,On;",
-	"-;",
 	"DIP;",
 	"-;",
 	"R0,Reset;",
@@ -243,12 +240,12 @@ wire [10:0] ps2_key;
 
 wire        ioctl_download;
 wire        ioctl_upload;
-wire        ioctl_upload_req;
+wire        ioctl_upload_req;   // driven by the tie-off in the hiscore section
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
-wire  [7:0] ioctl_din;
+wire  [7:0] ioctl_din;             // driven by the tie-off in the hiscore section
 
 wire [15:0] joystick_0, joystick_1;
 wire [15:0] joy = joystick_0 | joystick_1;
@@ -317,6 +314,7 @@ reg btn_1p_start = 0;
 reg btn_2p_start = 0;
 reg btn_pause    = 0;
 reg btn_service  = 0;
+reg btn_service_sw = 0;
 
 wire pressed = ~ps2_key[9];
 wire [7:0] code = ps2_key[7:0];
@@ -330,7 +328,8 @@ always @(posedge CLK_12M) begin
 			'h2E: btn_coin1    <= pressed; // 5 = Coin Input 1
 			'h36: btn_coin2    <= pressed; // 6 = Coin Input 2
 			'h4D: btn_pause    <= pressed; // P = Pause
-			'h46: btn_service  <= pressed; // 9 = Test Advance
+			'h46: btn_service    <= pressed; // 9 = AUX-S (IPT_SERVICE1)
+			'h06: btn_service_sw <= pressed; // F2 = Service switch
 
 			'h75: btn_up       <= pressed; // up         = Up
 			'h72: btn_down     <= pressed; // down       = Down
@@ -342,56 +341,34 @@ always @(posedge CLK_12M) begin
 	end
 end
 
-//////////////////  Game select (mod byte, MRA <rom index="5">)  ///////////////////////////
-// GAMESEL-2026-06-21: MRA `<rom index="5"><part>01</part></rom>` => Funky Fish; absent => Kangaroo (mod=0).
-// Cleared at each download start so Kangaroo MRAs (no index-5 byte) read mod=0 with NO MRA edits.
-// (index 1 = sound ROM, index 4 = NVRAM — both taken; 5 is free.)
-reg  [7:0] core_mod = 8'd0;
-// GAMESEL-FIX-2026-06-21: dropped the download-start reset — it cleared core_mod when the index-4 NVRAM load
-// (a separate ioctl_download transaction) re-raised ioctl_download AFTER the mod byte was captured. Now mirrors
-// the proven Kyugo pattern (Arcade-Kyugo.sv:494 — simple capture, no reset). Original below:
-// reg ioctl_download_d = 1'b0;
-// always @(posedge CLK_12M) begin
-//     ioctl_download_d <= ioctl_download;
-//     if (ioctl_download & ~ioctl_download_d)    core_mod <= 8'd0;       // download start
-//     else if (ioctl_wr & (ioctl_index == 8'd5)) core_mod <= ioctl_dout;
-// end
-always @(posedge CLK_12M)
-	if (ioctl_wr & (ioctl_index == 8'd5))
-		core_mod <= ioctl_dout;
-wire is_funkyfish = (core_mod == 8'd1);
-// Arabian always fits the MB8841 (SUN 8212) and cannot run without it — every joystick, button
-// and SW2 bit is read through the MCU. No index-5 mod byte, no bootleg path.
-wire mcu_present = 1'b1;
-
 //////////////////  Arcade Buttons/Interfaces   ///////////////////////////
 
-//Player 1
-// GAMESEL-2026-06-21: joystick_0[4] (Button1 / "Bubbles") is the KANGAROO jump-assist hack — for Funky Fish
-// it becomes the 2nd game button (IN1 bit 0x20) instead, so drop it from UP there.
-// Original: wire m_up1 = btn_up | joystick_0[3] | joystick_0[4];
-wire m_up1      = btn_up        | joystick_0[3]  | (is_funkyfish ? 1'b0 : joystick_0[4]);
+//Player 1 — COM1 (8-way) and COM2 (one button)
+wire m_up1      = btn_up        | joystick_0[3];
 wire m_down1    = btn_down      | joystick_0[2];
 wire m_left1    = btn_left      | joystick_0[1];
 wire m_right1   = btn_right     | joystick_0[0];
-wire m_punch_p1 = btn_fire      | joystick_0[5];
+wire m_btn1     = btn_fire      | joystick_0[4];
 
-//Player 2
-wire m_up2      = btn_up		| joystick_1[3]  | (is_funkyfish ? 1'b0 : joystick_1[4]);
-wire m_down2    = btn_down      | joystick_1[2];
-wire m_left2    = btn_left      | joystick_1[1];
-wire m_right2   = btn_right     | joystick_1[0];
-wire m_punch_p2 = btn_fire      | joystick_1[5];
+//Player 2 — COM3/COM4, the cocktail set
+wire m_up2      = joystick_1[3];
+wire m_down2    = joystick_1[2];
+wire m_left2    = joystick_1[1];
+wire m_right2   = joystick_1[0];
+wire m_btn2     = joystick_1[4];
 
 //Start/Coin
-wire m_start1   = btn_1p_start  | joystick_0[7];
-wire m_start2   = btn_2p_start  | joystick_0[8];
-wire m_coin1    = btn_coin1     | joystick_0[6];
-wire m_coin2    = btn_coin2     | joystick_1[6];
-wire m_pause    = btn_pause     | joystick_0[9];
+// Bit order follows the MRA <buttons names=".."> list, starting at joystick bit 4:
+// 4 Kick · 5 Coin · 6 Start 1P · 7 Start 2P · 8 Pause
+wire m_coin1    = btn_coin1     | joystick_0[5];
+wire m_coin2    = btn_coin2     | joystick_1[5];
+wire m_start1   = btn_1p_start  | joystick_0[6];
+wire m_start2   = btn_2p_start  | joystick_0[7];
+wire m_pause    = btn_pause     | joystick_0[8];
 
-//Service Mode
-wire m_service  = btn_service                  ;
+//Service inputs — MAME keeps these separate
+wire m_service    = btn_service;      // AUX-S, IPT_SERVICE1 (key 9) -> COM0 bit3
+wire m_service_sw = btn_service_sw;   // service switch (F2) -> IN0 bit2
 
 // PAUSE SYSTEM
 wire pause_cpu;
@@ -434,17 +411,14 @@ arcade_video #(256,24) arcade_video
 	.fx(status[17:15])
 );
 
-// DIP switch
-// DIP-FIX-2026-06-21: DIPs arrive from the OSD via ioctl index 254 (standard MiSTer DIP download), NOT status.
-// Was `sw0 = status[7:0]` — a placeholder that never received the OSD DIP edits → "always 3 lives". Mirrors
-// Kyugo (Arcade-Kyugo.sv:487). The MRA <switches default=..> is downloaded here; sw0 = DSW0 (read at 0xe400).
+// DIP switches arrive from the OSD via ioctl index 254, not status.
 reg [7:0] dip_sw[8] = '{8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00};
 always @(posedge CLK_12M) begin
 	if (ioctl_wr && (ioctl_index == 8'd254) && !ioctl_addr[24:3])
 		dip_sw[ioctl_addr[2:0]] <= ioctl_dout;
 end
-wire [7:0] sw0 = dip_sw[0];   // SW1, read directly by the Z80 at $C200
-// wire [7:0] sw1 = dip_sw[1];   // SW2 (4 bits), reaches the CPU through the MB8841 COM5 scan
+wire [7:0] sw1 = dip_sw[0];        // SW1, read directly by the Z80 at $C200
+wire [3:0] sw2 = dip_sw[1][3:0];   // SW2, reaches the CPU through the MB8841 COM5 scan
 
 //Instantiate Arabian top-level game module
 Arabian arabian_inst
@@ -453,17 +427,17 @@ Arabian arabian_inst
 
 	.clk_12m(CLK_12M),
 
-	// IN0: {coin_r, coin_l, start2, start1, service} active-high
-	.in0({m_coin2, m_coin1, m_start2, m_start1, m_service}),
-	// IN1: {punch, down, up, left, right} P1 active-high
-	// GAMESEL-2026-06-21: in1 widened 5->8; bit5 (0x20) = Funky Fish 2nd button (ff_btn2_p1).
-	// Original: .in1({m_punch_p1, m_down1, m_up1, m_left1, m_right1}),
-	.in1({3'b00, m_punch_p1, m_down1, m_up1, m_left1, m_right1}),
-	// IN2: {punch, down, up, left, right} P2 active-high
-	.in2({3'b00, m_punch_p2, m_down2, m_up2, m_left2, m_right2}),
-	.dsw0(sw0),
+	// Read directly by the Z80 at $C000 / $C200
+	.in0({m_service_sw, m_coin2, m_coin1}),
+	.dsw1(sw1),
 
-	.mcu_present(mcu_present),
+	// Scanned by the MB8841. COM0 bit0 is an unused active-low input, so it reads 1.
+	.com0({m_service, m_start2, m_start1, 1'b1}),
+	.com1({m_down1, m_up1, m_left1, m_right1}),
+	.com2({3'b000, m_btn1}),
+	.com3({m_down2, m_up2, m_left2, m_right2}),
+	.com4({3'b000, m_btn2}),
+	.com5(sw2),
 
 	.video_hsync(hs),
 	.video_vsync(vs),
@@ -491,37 +465,42 @@ Arabian arabian_inst
 	.hs_write(hs_write_enable)
 );
 
-// HISCORE SYSTEM (HISCORE-2026-06-21) — mirrors Tutankham (Kangaroo's structural base), same hiscore.v v0014.
-// ioctl_din / ioctl_upload_req are now DRIVEN by the hiscore module (the old "disabled" assigns are removed).
-// Score access uses the work-RAM port B in Arabian_CPU.sv:208 (clk_12m). Config = MRA index 3, dump = index 4.
-wire [15:0] hs_address;
-wire [7:0]  hs_data_in;
-wire [7:0]  hs_data_out;
-wire        hs_write_enable;
-wire        hs_access_read;
-wire        hs_access_write;
-wire        hs_pause;
-wire        hs_configured;
+// HISCORE SYSTEM — DISABLED.
+// The MB8841 shared RAM at $D000-$D7FF is the game's only work RAM and both dpram ports
+// are taken (Z80 + MCU), so there is no port for score access. Re-enabling means muxing
+// hiscore onto the MCU port while the game is paused, and adding index 3/4 to the MRA.
+// To restore: uncomment the block below and delete the tie-offs.
+wire [15:0] hs_address      = 16'd0;
+wire  [7:0] hs_data_in      = 8'd0;
+wire  [7:0] hs_data_out;
+wire        hs_write_enable = 1'b0;
+wire        hs_pause        = 1'b0;
+assign ioctl_din        = 8'd0;
+assign ioctl_upload_req = 1'b0;
 
-hiscore #(
-	.HS_ADDRESSWIDTH(16),
-	.CFG_ADDRESSWIDTH(3),
-	.CFG_LENGTHWIDTH(2)
-) hi (
-	.*,
-	.clk(CLK_12M),
-	.paused(pause_cpu),
-	.autosave(status[27]),
-	.ram_address(hs_address),
-	.data_from_ram(hs_data_out),
-	.data_to_ram(hs_data_in),
-	.data_from_hps(ioctl_dout),
-	.data_to_hps(ioctl_din),
-	.ram_write(hs_write_enable),
-	.ram_intent_read(hs_access_read),
-	.ram_intent_write(hs_access_write),
-	.pause_cpu(hs_pause),
-	.configured(hs_configured)
-);
+// wire        hs_access_read;
+// wire        hs_access_write;
+// wire        hs_configured;
+//
+// hiscore #(
+// 	.HS_ADDRESSWIDTH(16),
+// 	.CFG_ADDRESSWIDTH(3),
+// 	.CFG_LENGTHWIDTH(2)
+// ) hi (
+// 	.*,
+// 	.clk(CLK_12M),
+// 	.paused(pause_cpu),
+// 	.autosave(status[27]),
+// 	.ram_address(hs_address),
+// 	.data_from_ram(hs_data_out),
+// 	.data_to_ram(hs_data_in),
+// 	.data_from_hps(ioctl_dout),
+// 	.data_to_hps(ioctl_din),
+// 	.ram_write(hs_write_enable),
+// 	.ram_intent_read(hs_access_read),
+// 	.ram_intent_write(hs_access_write),
+// 	.pause_cpu(hs_pause),
+// 	.configured(hs_configured)
+// );
 
 endmodule
