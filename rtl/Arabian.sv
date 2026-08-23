@@ -35,7 +35,8 @@ module Arabian
 
     input                pause,
 
-    // Hiscore (stubbed)
+    // Hiscore
+    input                hs_access,
     input         [15:0] hs_address,
     input          [7:0] hs_data_in,
     output         [7:0] hs_data_out,
@@ -106,6 +107,7 @@ Arabian_CPU cpu_board
 
     .pause(pause),
 
+    .hs_access(hs_access),
     .hs_address(hs_address),
     .hs_data_in(hs_data_in),
     .hs_data_out(hs_data_out),

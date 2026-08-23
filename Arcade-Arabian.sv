@@ -225,6 +225,9 @@ localparam CONF_STR = {
 	"P1OP,Pause when OSD is open,On,Off;",
 	"P1OQ,Dim video after 10s,On,Off;",
 	"-;",
+	"P2,High Score Options;",
+	"P2OR,Autosave Hiscores,Off,On;",
+	"-;",
 	"DIP;",
 	"-;",
 	"R0,Reset;",
@@ -240,12 +243,12 @@ wire [10:0] ps2_key;
 
 wire        ioctl_download;
 wire        ioctl_upload;
-wire        ioctl_upload_req;   // driven by the tie-off in the hiscore section
+wire        ioctl_upload_req;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
-wire  [7:0] ioctl_din;             // driven by the tie-off in the hiscore section
+wire  [7:0] ioctl_din;
 
 wire [15:0] joystick_0, joystick_1;
 wire [15:0] joy = joystick_0 | joystick_1;
@@ -459,48 +462,47 @@ Arabian arabian_inst
 
 	.pause(pause_cpu),
 
+	.hs_access(hs_access),
 	.hs_address(hs_address),
 	.hs_data_in(hs_data_in),
 	.hs_data_out(hs_data_out),
 	.hs_write(hs_write_enable)
 );
 
-// HISCORE SYSTEM — DISABLED.
-// The MB8841 shared RAM at $D000-$D7FF is the game's only work RAM and both dpram ports
-// are taken (Z80 + MCU), so there is no port for score access. Re-enabling means muxing
-// hiscore onto the MCU port while the game is paused, and adding index 3/4 to the MRA.
-// To restore: uncomment the block below and delete the tie-offs.
-wire [15:0] hs_address      = 16'd0;
-wire  [7:0] hs_data_in      = 8'd0;
+// HISCORE SYSTEM — hiscore.v v0014, driving ioctl_din / ioctl_upload_req.
+// Score data lives in the MB8841 shared RAM, so hs_access borrows the MCU's port in
+// Arabian_CPU.sv; the module pauses the CPU before it touches RAM, which frees that port.
+// Config = MRA index 3, dump = index 4.
+wire [15:0] hs_address;
+wire  [7:0] hs_data_in;
 wire  [7:0] hs_data_out;
-wire        hs_write_enable = 1'b0;
-wire        hs_pause        = 1'b0;
-assign ioctl_din        = 8'd0;
-assign ioctl_upload_req = 1'b0;
+wire        hs_write_enable;
+wire        hs_access_read;
+wire        hs_access_write;
+wire        hs_pause;
+wire        hs_configured;
 
-// wire        hs_access_read;
-// wire        hs_access_write;
-// wire        hs_configured;
-//
-// hiscore #(
-// 	.HS_ADDRESSWIDTH(16),
-// 	.CFG_ADDRESSWIDTH(3),
-// 	.CFG_LENGTHWIDTH(2)
-// ) hi (
-// 	.*,
-// 	.clk(CLK_12M),
-// 	.paused(pause_cpu),
-// 	.autosave(status[27]),
-// 	.ram_address(hs_address),
-// 	.data_from_ram(hs_data_out),
-// 	.data_to_ram(hs_data_in),
-// 	.data_from_hps(ioctl_dout),
-// 	.data_to_hps(ioctl_din),
-// 	.ram_write(hs_write_enable),
-// 	.ram_intent_read(hs_access_read),
-// 	.ram_intent_write(hs_access_write),
-// 	.pause_cpu(hs_pause),
-// 	.configured(hs_configured)
-// );
+wire        hs_access = hs_access_read | hs_access_write;
+
+hiscore #(
+	.HS_ADDRESSWIDTH(16),
+	.CFG_ADDRESSWIDTH(3),
+	.CFG_LENGTHWIDTH(2)
+) hi (
+	.*,
+	.clk(CLK_12M),
+	.paused(pause_cpu),
+	.autosave(status[27]),
+	.ram_address(hs_address),
+	.data_from_ram(hs_data_out),
+	.data_to_ram(hs_data_in),
+	.data_from_hps(ioctl_dout),
+	.data_to_hps(ioctl_din),
+	.ram_write(hs_write_enable),
+	.ram_intent_read(hs_access_read),
+	.ram_intent_write(hs_access_write),
+	.pause_cpu(hs_pause),
+	.configured(hs_configured)
+);
 
 endmodule

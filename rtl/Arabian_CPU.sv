@@ -48,7 +48,9 @@ module Arabian_CPU
 
     input         pause,
 
-    // Hiscore interface (active high, stubbed for now)
+    // Hiscore interface. Borrows the MCU's shared-RAM port; hiscore.v pauses the CPU (and
+    // therefore the MCU) before asserting hs_access, so the port is free while it is high.
+    input         hs_access,
     input  [15:0] hs_address,
     input   [7:0] hs_data_in,
     output  [7:0] hs_data_out,
@@ -182,10 +184,8 @@ eprom_8k rom3 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom3_D),
 // Shared MB8841 RAM ($D000-$D7FF, 2KB) is instantiated in the MB8841 MCU section below,
 // after the MCU-side port wires it needs.
 
-// Hiscore needs a third RAM port: the shared RAM's two ports are taken by the Z80 and the
-// MCU. The MRA carries no hiscore config, so the block is inert; wiring it back means
-// muxing onto the MCU port while the game is paused.
-assign hs_data_out = 8'h00;
+// Score data lives in the shared RAM ($D384 length 0x3C, $D3BD length 1), so hiscore reads
+// it back off the MCU's port -- see the customram instance in the MB8841 section.
 
 //----------------------------------------------------- Blitter Registers ------------------------------------------------------//
 
@@ -263,6 +263,12 @@ wire  [7:0] mcu_ram_q;
 // R0=0xF so it is inactive out of reset; qualified with mcu_reset_n regardless.
 wire        mcu_ram_we   = mcu_reset_n & ~r0_out[1];
 
+// Port B is shared between the MB8841 and the hiscore block. hs_access only rises while
+// hiscore.v has the CPU paused, so the MCU is frozen and cannot be mid-transaction.
+wire [10:0] ram_b_addr = hs_access ? hs_address[10:0] : mcu_ram_addr;
+wire  [7:0] ram_b_din  = hs_access ? hs_data_in       : mcu_ram_din;
+wire        ram_b_we   = hs_access ? hs_write         : mcu_ram_we;
+
 dpram_dc #(.widthad_a(11)) customram
 (
     .clock_a(clk_12m),
@@ -272,11 +278,13 @@ dpram_dc #(.widthad_a(11)) customram
     .q_a(customram_D),
 
     .clock_b(clk_12m),
-    .wren_b(mcu_ram_we),
-    .address_b(mcu_ram_addr),
-    .data_b(mcu_ram_din),
+    .wren_b(ram_b_we),
+    .address_b(ram_b_addr),
+    .data_b(ram_b_din),
     .q_b(mcu_ram_q)
 );
+
+assign hs_data_out = mcu_ram_q;
 
 //--- K port: shared RAM low nibble, or one of six input banks ---
 // sel = {R2[1:0], R1}; the lowest clear bit selects its bank, none clear reads 0xF.

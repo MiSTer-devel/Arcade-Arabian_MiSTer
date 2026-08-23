@@ -1,5 +1,5 @@
 <h1 align="center">Arabian FPGA Core</h1>
-
+  <img src="Useful Information/Arabian.png" width="800">
 <p align="center">
   Arcade hardware implementation for MiSTer FPGA
 </p>
@@ -45,7 +45,7 @@ Default MiSTer gamepad mapping:
 
 - Arcade-accurate CPU timing
 - Sprite priority and layer handling
-- High score saving support - Loading is still broken (Working on it)
+- High score saving support
 - MiSTer-compatible .mra provided
 - Verified ROM definitions with checksums
 
