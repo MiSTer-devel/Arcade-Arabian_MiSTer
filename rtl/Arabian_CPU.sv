@@ -47,6 +47,7 @@ module Arabian_CPU
     input         mcurom_wr,      // ioctl_wr for index 6 (MB8841 program, 2KB)
 
     input         pause,
+    input         crt_flip,
 
     // Hiscore interface. Borrows the MCU's shared-RAM port; hiscore.v pauses the CPU (and
     // therefore the MCU) before asserting hs_access, so the port is free while it is high.
@@ -741,8 +742,14 @@ end
 // Scanout address is combinational off the counters; the DPRAM address register and the
 // scan_word latch supply the two pipeline stages, and the slice index is delayed by the
 // same two so it lines up with the word it selects.
-wire [7:0] eff_x = h_cnt[7:0];
-wire [7:0] eff_y = v_cnt[7:0];
+// 180-degree mirror of the bitmap scanout, from the game's own flip (MCU R0.3, driven by
+// the Flip Screen DIP) XORed with the OSD CRT Flip. MAME's screen_update does
+// dest_x = 255-x, dest_y = 255-y on a 256x256 bitmap (arabian.cpp:475-484), which is this
+// XOR. Visible X is 0..255 and visible Y is 11..244 (11+244 = 255), so each range maps
+// exactly onto itself reversed.
+wire screen_mirror = flip_screen ^ crt_flip;
+wire [7:0] eff_x = h_cnt[7:0] ^ {8{screen_mirror}};
+wire [7:0] eff_y = v_cnt[7:0] ^ {8{screen_mirror}};
 
 assign vram_addr_b = {eff_x[7:2], eff_y};
 

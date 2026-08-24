@@ -34,6 +34,7 @@ module Arabian
     input          [7:0] ioctl_index,
 
     input                pause,
+    input                crt_flip,
 
     // Hiscore
     input                hs_access,
@@ -106,6 +107,7 @@ Arabian_CPU cpu_board
     .mcurom_wr(idx6_wr),
 
     .pause(pause),
+    .crt_flip(crt_flip),
 
     .hs_access(hs_access),
     .hs_address(hs_address),
