@@ -304,11 +304,14 @@ always_ff @(posedge clk_12m) begin
     end
 end
 
-mb88 mcu
+// MB88-2026-10-24: fleet mb88. IRQ_AFTER_INSN(1) keeps this core's MAME-order interrupt entry (its old
+// mb88_core had IRQ-CYCLES-FIX-2026-08-21 built in); ram_clr unused. Original first line: mb88 mcu
+mb88 #(.IRQ_AFTER_INSN(1)) mcu
 (
     .clock      (clk_12m),
     .ena        (mcu_ena),
     .reset_n    (mcu_reset_n),
+    .ram_clr    (1'b0),
 
     // MAME's read_r returns the output latch; R0 additionally reads bit2 high ("RAM mode enabled")
     .r0_port_in (r0_out | 4'b0100),
@@ -317,6 +320,7 @@ mb88 mcu
     .k_port_in  (mcu_k),
     .ol_port_out(mcu_ol), .oh_port_out(mcu_oh),
     .p_port_out (mcu_p),
+    .o_wr       (),                   // MB88-2026-10-24: fleet mb88 outO strobe, unused here
 
     .stby_n     (1'b1),
     .tc_n       (1'b1),
