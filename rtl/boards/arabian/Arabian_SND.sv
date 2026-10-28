@@ -30,7 +30,7 @@ module Arabian_SND
 
     output signed [15:0] sound_out,
 
-    // shared AY-3-8910 (pool slot ay_0, rtl/arabian_board.sv)
+    // shared AY-3-8910 (pool slot ay_0, rtl/arabian_dispatcher.sv)
     output chip_pool_pkg::ay_i_t   ay_0_i,
     input  chip_pool_pkg::ayio_o_t ay_0_o
 );

@@ -3,7 +3,7 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  Boards never instantiate a CPU, sound chip, ROM store or board RAM. They live ONCE in the dispatcher
-//  rtl/arabian_board.sv: Z80 z80_0, MB8841 mb88_0, AY-3-8910 ay_0 (chip_pool_pkg buses), the shared ROM blocks
+//  rtl/arabian_dispatcher.sv: Z80 z80_0, MB8841 mb88_0, AY-3-8910 ay_0 (chip_pool_pkg buses), the shared ROM blocks
 //  (eprom_8k rom0-3 on index 0, mcu_prog on index 6, gfx_plane_lo / _hi on index 2) and the 5 board RAM pool blocks
 //  (ram_pool_pkg: 0 = shared MB8841 RAM 2K (port B = MCU / hiscore), 1-4 = VRAM byte lanes 16K).
 //  To add a board: copy this file to rtl/boards/<board>/<board>.sv, add it to files.qip + verilator/Makefile, instance

@@ -348,7 +348,7 @@ wire [7:0] sw1 = dip_sw[0];        // SW1, read directly by the Z80 at $C200
 wire [3:0] sw2 = dip_sw[1][3:0];   // SW2, reaches the CPU through the MB8841 COM5 scan
 
 //Instantiate Arabian top-level game module
-arabian_board arabian_inst
+arabian_dispatcher arabian_inst
 (
 	.reset(~reset),       // MiSTer reset is active-high; invert for active-low game modules
 

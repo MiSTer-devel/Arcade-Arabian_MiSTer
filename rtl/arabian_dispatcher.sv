@@ -6,7 +6,7 @@
 //
 //============================================================================
 
-module arabian_board
+module arabian_dispatcher
 (
     input                reset,
     input                clk_12m,

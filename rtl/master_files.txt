@@ -1,7 +1,0 @@
-rtl/chip_pool_pkg.sv
-rtl/ram_pool_pkg.sv
-rtl/art/artwork.sv
-rtl/art/art_resample.sv
-rtl/art/png_decode.sv
-rtl/art/inflate.sv
-rtl/art/art_xclk.sv

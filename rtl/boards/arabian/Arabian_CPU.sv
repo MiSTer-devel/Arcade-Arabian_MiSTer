@@ -31,7 +31,7 @@ module Arabian_CPU
     input   [7:0] ay_iob,
 
 
-    // shared Z80 (pool slot z80_0) and MB8841 (pool slot mb88_0), rtl/arabian_board.sv
+    // shared Z80 (pool slot z80_0) and MB8841 (pool slot mb88_0), rtl/arabian_dispatcher.sv
     output chip_pool_pkg::z80_i_t  z80_0_i,
     input  chip_pool_pkg::z80_o_t  z80_0_o,
     output chip_pool_pkg::mb88_i_t mb88_0_i,
