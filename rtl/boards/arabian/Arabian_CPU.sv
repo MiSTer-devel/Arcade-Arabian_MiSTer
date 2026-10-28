@@ -2,55 +2,57 @@
 //
 //  Arabian Main CPU Board
 //  Based on MAME arabian.cpp by Dan Boris.
-//  The video timing, VRAM and blitter blocks are still the kangaroo.cpp implementation
-//  by Ville Laitinen and Aaron Giles, pending their port.
+//  Video timing, VRAM and blitter derived from kangaroo.cpp by Ville Laitinen and Aaron Giles.
 //
 //============================================================================
 
 module Arabian_CPU
 (
     input         reset,
-    input         clk_12m,           // 12 MHz master clock (MAIN_OSC, matches real XTAL)
+    input         clk_12m,           // 12 MHz master (XTAL)
 
-    // Video outputs — 8-bit, straight from the colour-output equations
     output  [7:0] video_r, video_g, video_b,
     output        video_hsync, video_vsync,
     output        video_hblank, video_vblank,
     output        ce_pix,
 
-    // Inputs read directly by the Z80
     input   [7:0] dsw1,             // SW1  at $C200
     input   [2:0] in0,              // $C000: b0 coin1, b1 coin2, b2 service (all active high)
-    // Everything else is scanned by the MB8841 through its K port, six 4-bit banks.
-    // COM0 {aux-s, start2, start1, 1} · COM1/COM3 {down,up,left,right} · COM2/COM4 {0,0,0,button}
-    // COM3/COM4 are the cocktail player-2 set · COM5 is SW2.
+    // MB8841 K-port banks: COM0 {aux-s, start2, start1, 1}, COM1/COM3 {down, up, left, right},
+    // COM2/COM4 {0, 0, 0, button} (COM3/COM4 = cocktail player 2), COM5 = SW2
     input   [3:0] com0, com1, com2, com3, com4, com5,
 
-    // AY-3-8910, driven directly over Z80 I/O space (no sound CPU on this board)
+    // AY-3-8910 bus, in Z80 I/O space
     output        ay_addr_wr,       // OUT to $C800: register select
     output        ay_data_wr,       // OUT to $CA00: register data
     output  [7:0] ay_din,
-    // AY port A = video control, port B = MCU /IREQ, /SRES and coin counters.
-    // Consumed by the MCU block and the palette/compositing stage.
+    // AY port A = video control, port B = MCU /IREQ, /SRES and coin counters
     input   [7:0] ay_ioa,
     input   [7:0] ay_iob,
 
-    // Blitter GFX ROM — 32KB, index 2. Blitter-only; not visible in CPU address space.
-    input         gfx_cs_i,
-    // Main program ROMs — 4 x 8KB, index 0
-    input         rom0_cs_i, rom1_cs_i, rom2_cs_i, rom3_cs_i,
-    input  [24:0] ioctl_addr,
-    input   [7:0] ioctl_data,
-    input         ioctl_wr,
 
-    // AY port B drives the MCU's /IREQ and /SRES
-    input         mcurom_wr,      // ioctl_wr for index 6 (MB8841 program, 2KB)
+    // shared Z80 (pool slot z80_0) and MB8841 (pool slot mb88_0), rtl/arabian_board.sv
+    output chip_pool_pkg::z80_i_t  z80_0_i,
+    input  chip_pool_pkg::z80_o_t  z80_0_o,
+    output chip_pool_pkg::mb88_i_t mb88_0_i,
+    input  chip_pool_pkg::mb88_o_t mb88_0_o,
+
+    // shared ROM blocks: program (index 0), MB8841 program (index 6), blitter GFX planes (index 2)
+    output [12:0] rom_cpu_a,
+    input   [7:0] rom0_D, rom1_D, rom2_D, rom3_D,
+    output [10:0] mcu_rom_a,
+    input   [7:0] mcu_rom_d,
+    output [13:0] gfx_a,
+    input   [7:0] gfx_lo_q, gfx_hi_q,
+
+    // board RAM pool blocks 0-4: shared MB8841 RAM (port B = MCU / hiscore), VRAM byte lanes 0-3
+    output ram_pool_pkg::pram_i_t [4:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [4:0] pr_o,
 
     input         pause,
     input         crt_flip,
 
-    // Hiscore interface. Borrows the MCU's shared-RAM port; hiscore.v pauses the CPU (and
-    // therefore the MCU) before asserting hs_access, so the port is free while it is high.
+    // hiscore: borrows the MCU's shared-RAM port (hiscore.v pauses the CPU, and so the MCU, first)
     input         hs_access,
     input  [15:0] hs_address,
     input   [7:0] hs_data_in,
@@ -60,83 +62,60 @@ module Arabian_CPU
 
 //------------------------------------------------------- Clock Enables -------------------------------------------------------//
 
-// Generate clock enables from the 12 MHz master (MAIN_OSC, arabian.cpp)
-// cen_6m = 12/2   = 6 MHz (pixel clock — provisional, see Video Timing)
-// cen_3m = 12/4   = 3 MHz (Z80,     MAIN_OSC/4)
-// cen_2m = 12/6   = 2 MHz (MB8841 pin clock, MAIN_OSC/3/2)
 reg [1:0] div = 2'd0;
 always_ff @(posedge clk_12m) begin
     div <= div + 2'd1;
 end
-wire cen_6m = (div[0] == 1'b0);      // Every 2nd clock
-wire cen_3m = (div == 2'd0);         // Every 4th clock
+wire cen_6m = (div[0] == 1'b0);      // 6 MHz pixel
+wire cen_3m = (div == 2'd0);         // 3 MHz Z80
 
 reg [2:0] div6 = 3'd0;
 always_ff @(posedge clk_12m) begin
     div6 <= (div6 == 3'd5) ? 3'd0 : div6 + 3'd1;
 end
-wire cen_2m = (div6 == 3'd0);        // Every 6th clock
+wire cen_2m = (div6 == 3'd0);        // 2 MHz MB8841 pin clock
 
 assign ce_pix = cen_6m;
 
-// Holds the Z80 while the blitter owns the bitmap: arabian.cpp blits inside the $E006
-// write and the board's DMA holds the bus for the same span, so the blit must be atomic.
+// the Z80 is held for the whole blit (the DMA owns the bus), so a blit is atomic
 wire blit_active_w;
 
 //------------------------------------------------------------ CPU -------------------------------------------------------------//
 
-// Main CPU — Zilog Z80 (T80s soft core)
+// Z80 bus (pool slot z80_0)
 wire [15:0] cpu_A;
 wire  [7:0] cpu_Dout;
 wire n_m1, n_mreq, n_iorq, n_rd, n_wr, n_rfsh;
 
-T80s #(.Mode(0), .T2Write(1), .IOWait(1)) main_cpu
-(
-    .RESET_n(reset),
-    .CLK(clk_12m),
-    .CEN(cen_3m & ~pause & ~blit_active_w), // DMA holds the bus; see the blitter
-    .INT_n(n_irq),
-    .NMI_n(n_nmi),
-    .BUSRQ_n(1'b1),
-    .M1_n(n_m1),
-    .MREQ_n(n_mreq),
-    .IORQ_n(n_iorq),
-    .RD_n(n_rd),
-    .WR_n(n_wr),
-    .RFSH_n(n_rfsh),
-    .A(cpu_A),
-    .DI(cpu_Din),
-    .DO(cpu_Dout)
-);
+assign cpu_A    = z80_0_o.a;
+assign cpu_Dout = z80_0_o.dout;
+assign n_m1     = z80_0_o.m1_n;
+assign n_mreq   = z80_0_o.mreq_n;
+assign n_iorq   = z80_0_o.iorq_n;
+assign n_rd     = z80_0_o.rd_n;
+assign n_wr     = z80_0_o.wr_n;
+assign n_rfsh   = z80_0_o.rfsh_n;
 
 //------------------------------------------------------ Address Decoding ------------------------------------------------------//
 
-// Active-low signals for memory regions
 wire mem_access = ~n_mreq & n_rfsh;
 
-// Program ROM: 0x0000-0x7FFF (read only), flat 32KB
+// $0000-$7FFF program ROM, flat 32KB
 wire cs_any_rom = mem_access & ~cpu_A[15];
 
-// Bitmap RAM: $8000-$BFFF, write only from the CPU's side
-wire cs_videoram = mem_access & (cpu_A[15:14] == 2'b10);          // $8000-$BFFF
+wire cs_videoram = mem_access & (cpu_A[15:14] == 2'b10);          // $8000-$BFFF bitmap, CPU write only
 
-// Coin/service inputs: $C000, mirror $01FF
-wire cs_in0 = mem_access & (cpu_A[15:9] == 7'b1100000);           // $C000-$C1FF
+wire cs_in0 = mem_access & (cpu_A[15:9] == 7'b1100000);           // $C000 coin / service, mirror $01FF
 
-// SW1: $C200, mirror $01FF
-wire cs_dsw1 = mem_access & (cpu_A[15:9] == 7'b1100001);          // $C200-$C3FF
+wire cs_dsw1 = mem_access & (cpu_A[15:9] == 7'b1100001);          // $C200 SW1, mirror $01FF
 
-// Shared MB8841 RAM: $D000-$D7FF, mirror $0800. This is also the Z80's only work RAM.
-wire cs_customram = mem_access & (cpu_A[15:12] == 4'hD);          // $D000-$DFFF
+wire cs_customram = mem_access & (cpu_A[15:12] == 4'hD);          // $D000-$D7FF shared MB8841 RAM (mirror $0800) = the Z80's only work RAM
 
-// Blitter registers: $E000-$E006, mirror $0FF8 -> A15-A12 = 1110, register = A[2:0]
-wire cs_blitter = mem_access & (cpu_A[15:12] == 4'hE);            // $E000-$EFFF
+wire cs_blitter = mem_access & (cpu_A[15:12] == 4'hE);            // $E000-$E006 blitter, mirror $0FF8
 
 
-// AY-3-8910 lives in I/O space, not memory space. The game issues
-//   ld bc,$C800 / out (c),d / ld b,$CA / out (c),e
-// so the full 16-bit address is on the bus; mirror $01FF means A15-A9 decode.
-// n_m1 qualification keeps interrupt acknowledge (IORQ+M1) out of the decode.
+// AY in I/O space: the game uses OUT (C) with B = $C8 / $CA, so A15-A9 decode (mirror $01FF);
+// M1 keeps the interrupt acknowledge out
 wire io_write = ~n_iorq & n_m1 & ~n_wr;
 assign ay_addr_wr = io_write & (cpu_A[15:9] == 7'b1100100);   // $C800-$C9FF
 assign ay_data_wr = io_write & (cpu_A[15:9] == 7'b1100101);   // $CA00-$CBFF
@@ -156,37 +135,28 @@ wire [7:0] cpu_Din =
 
 //-------------------------------------------------------- Program ROMs --------------------------------------------------------//
 
-wire [7:0] rom0_D, rom1_D, rom2_D, rom3_D;
 
 assign rom_D = (cpu_A[14:13] == 2'd0) ? rom0_D :
                (cpu_A[14:13] == 2'd1) ? rom1_D :
                (cpu_A[14:13] == 2'd2) ? rom2_D :
                                         rom3_D;
 
-eprom_8k rom0 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom0_D),
-               .ADDR_DL(ioctl_addr), .CLK_DL(clk_12m), .DATA_IN(ioctl_data),
-               .CS_DL(rom0_cs_i), .WR(ioctl_wr));
-eprom_8k rom1 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom1_D),
-               .ADDR_DL(ioctl_addr), .CLK_DL(clk_12m), .DATA_IN(ioctl_data),
-               .CS_DL(rom1_cs_i), .WR(ioctl_wr));
-eprom_8k rom2 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom2_D),
-               .ADDR_DL(ioctl_addr), .CLK_DL(clk_12m), .DATA_IN(ioctl_data),
-               .CS_DL(rom2_cs_i), .WR(ioctl_wr));
-eprom_8k rom3 (.ADDR(cpu_A[12:0]), .CLK(clk_12m), .DATA(rom3_D),
-               .ADDR_DL(ioctl_addr), .CLK_DL(clk_12m), .DATA_IN(ioctl_data),
-               .CS_DL(rom3_cs_i), .WR(ioctl_wr));
+assign rom_cpu_a = cpu_A[12:0];
 
 //------------------------------------------------------------ RAM ------------------------------------------------------------//
 
-// Shared MB8841 RAM ($D000-$D7FF, 2KB) is instantiated in the MB8841 MCU section below,
-// after the MCU-side port wires it needs.
+// board RAMs = pool blocks 0-4 (0 = shared MB8841 RAM, 1-4 = VRAM byte lanes)
+ram_pool_pkg::pram_i_t cram_i, vl0_i, vl1_i, vh0_i, vh1_i;
+ram_pool_pkg::pram_o_t cram_o, vl0_o, vl1_o, vh0_o, vh1_o;
+assign pr_i = {vh1_i, vh0_i, vl1_i, vl0_i, cram_i};
+assign {vh1_o, vh0_o, vl1_o, vl0_o, cram_o} = pr_o;
 
-// Score data lives in the shared RAM ($D384 length 0x3C, $D3BD length 1), so hiscore reads
-// it back off the MCU's port -- see the customram instance in the MB8841 section.
+
+// hiscore: scores at $D384 (0x3C bytes) and $D3BD (1) in the shared RAM, read via the MCU port
 
 //----------------------------------------------------- Blitter Registers ------------------------------------------------------//
 
-// arabian.cpp blitter_w: $E000-$E006, mirror $0FF8
+// blitter registers $E000-$E006 (mirror $0FF8):
 //   0 = plane / BSEL mask   1,2 = source ROM address (lo,hi)   3 = destination Y
 //   4 = destination X (<<2) 5 = size Y                         6 = size X, and writing it starts the blit
 reg [7:0] blit_reg [0:7];
@@ -200,8 +170,7 @@ wire cs_blit_wr = cs_blitter & ~n_wr;
 reg  cs_blit_wr_d = 1'b0;
 reg  blitter_start = 1'b0;
 
-// Edge-detected so one Z80 write produces exactly one register update and one start pulse,
-// however many master clocks the write strobe spans.
+// edge-detected: one register update and one start pulse per Z80 write
 always_ff @(posedge clk_12m) begin
     cs_blit_wr_d  <= cs_blit_wr;
     blitter_start <= 1'b0;
@@ -211,32 +180,29 @@ always_ff @(posedge clk_12m) begin
     end
 end
 
-// NMI is not connected on this board (arabian.cpp memory map header).
+// NMI is not connected on this board
 wire n_nmi = 1'b1;
 
 //-------------------------------------------------------- MB8841 MCU ---------------------------------------------------------//
-// The SUN 8212 (an MB8841) is a shared-RAM coprocessor, not a protection oracle, and the
-// game cannot run without it: every joystick, button, start and SW2 bit reaches the Z80
-// only through this scan. Wiring mirrors arabian.cpp:
-//   O port + P[2:0]        -> shared RAM address A0-A10        (mcu_port_o_w / mcu_port_p_w)
-//   R0.1 low               -> write 0xF0|R3 to that address    (mcu_port_r0_w)
-//   R0.0 low               -> K reads the low nibble of RAM    (mcu_port_k_r)
+// SUN 8212 (MB8841): shared-RAM coprocessor. Every joystick, button, start and SW2 bit reaches the Z80
+// through its scan; the game cannot run without it.
+//   O port + P[2:0]        -> shared RAM address A0-A10
+//   R0.1 low               -> write 0xF0|R3 to that address
+//   R0.0 low               -> K reads the low nibble of RAM
 //   R0.0 high              -> K reads COM[i], i = lowest clear bit of {R2[1:0],R1}
-//   R0.3                   -> flip screen                      (mcu_port_r0_w)
+//   R0.3                   -> flip screen
 //   R port reads           -> the output latch, R0 with bit2 forced high ("RAM mode")
-//   AY port B b5 -> /IREQ, b4 -> /SRES                         (ay8910_portb_w)
-// There is no protection PROM on this board and the MCU does not drive the Z80's NMI.
+//   AY port B b5 -> /IREQ, b4 -> /SRES
+// No protection PROM; the MCU does not drive the Z80 NMI.
 
-// `ena` is one MB88 machine cycle. MAME converts pin clocks at (clocks+5)/6, so the 2 MHz
-// pin rate is divided by 6. The /32 timer prescaler lives inside the mb88.sv wrapper.
+// ena = one MB88 machine cycle = 2 MHz pin clock / 6 (the /32 timer prescaler is inside mb88.sv)
 localparam int MCU_CEN_DIV = 6;
 reg [2:0] mcu_div_cnt = 3'd0;
 always @(posedge clk_12m)
     if (cen_2m) mcu_div_cnt <= (mcu_div_cnt == MCU_CEN_DIV[2:0] - 3'd1) ? 3'd0 : mcu_div_cnt + 3'd1;
 wire mcu_ena = cen_2m & ~pause & (mcu_div_cnt == MCU_CEN_DIV[2:0] - 3'd1);
 
-// /SRES. The AY's registers come out of reset at 0, so the MCU stays held until the game
-// writes AY register 15 — same as the real board.
+// /SRES: AY registers reset to 0, so the MCU is held until the game writes AY register 15, as on the board
 wire mcu_reset_n = reset & ay_iob[4];
 
 wire [10:0] mcu_rom_addr;
@@ -249,30 +215,22 @@ wire  [3:0] r0_out, r1_out, r2_out, r3_out;
 wire [10:0] mcu_ram_addr = {mcu_p[2:0], mcu_o};
 wire  [7:0] mcu_ram_din  = {4'hF, r3_out};
 wire  [7:0] mcu_ram_q;
-// R0.1 is the RAM write strobe and is level-driven, as on the board. r_out resets to
-// R0=0xF so it is inactive out of reset; qualified with mcu_reset_n regardless.
+// R0.1 = level-driven RAM write strobe; R0 resets to 0xF, so it is inactive out of reset
 wire        mcu_ram_we   = mcu_reset_n & ~r0_out[1];
 
-// Port B is shared between the MB8841 and the hiscore block. hs_access only rises while
-// hiscore.v has the CPU paused, so the MCU is frozen and cannot be mid-transaction.
+// port B: MCU, or hiscore while hiscore.v has the CPU (and so the MCU) paused
 wire [10:0] ram_b_addr = hs_access ? hs_address[10:0] : mcu_ram_addr;
 wire  [7:0] ram_b_din  = hs_access ? hs_data_in       : mcu_ram_din;
 wire        ram_b_we   = hs_access ? hs_write         : mcu_ram_we;
 
-dpram_dc #(.widthad_a(11)) customram
-(
-    .clock_a(clk_12m),
-    .wren_a(cs_customram & ~n_wr),
-    .address_a(cpu_A[10:0]),
-    .data_a(cpu_Dout),
-    .q_a(customram_D),
-
-    .clock_b(clk_12m),
-    .wren_b(ram_b_we),
-    .address_b(ram_b_addr),
-    .data_b(ram_b_din),
-    .q_b(mcu_ram_q)
-);
+assign cram_i.a_addr = 15'(cpu_A[10:0]);
+assign cram_i.a_d    = cpu_Dout;
+assign cram_i.a_we   = cs_customram & ~n_wr;
+assign cram_i.b_addr = 15'(ram_b_addr);
+assign cram_i.b_d    = ram_b_din;
+assign cram_i.b_we   = ram_b_we;
+assign customram_D   = cram_o.a_q;
+assign mcu_ram_q     = cram_o.b_q;
 
 assign hs_data_out = mcu_ram_q;
 
@@ -289,8 +247,7 @@ wire [3:0] com_val = ~com_sel[0] ? com0 :
 wire [3:0] mcu_k = ~r0_out[0] ? mcu_ram_q[3:0] : com_val;
 
 //--- flip screen ---
-// MAME latches this only when the MCU writes R0. r_out resets to R0=0xF, so sampling R0.3
-// continuously would report "flipped" before the first write; latch it on an R0 change.
+// latched on an R0 change: R0 resets to 0xF, so reading R0.3 directly says "flipped" before the first write
 reg [3:0] r0_out_d   = 4'hF;
 reg       flip_screen = 1'b0;
 always_ff @(posedge clk_12m) begin
@@ -304,49 +261,26 @@ always_ff @(posedge clk_12m) begin
     end
 end
 
-// MB88-2026-10-24: fleet mb88. IRQ_AFTER_INSN(1) keeps this core's MAME-order interrupt entry (its old
-// mb88_core had IRQ-CYCLES-FIX-2026-08-21 built in); ram_clr unused. Original first line: mb88 mcu
-mb88 #(.IRQ_AFTER_INSN(1)) mcu
-(
-    .clock      (clk_12m),
-    .ena        (mcu_ena),
-    .reset_n    (mcu_reset_n),
-    .ram_clr    (1'b0),
+assign mb88_0_i.ena     = mcu_ena;
+assign mb88_0_i.reset_n = mcu_reset_n;
+assign mb88_0_i.k       = mcu_k;
+assign mb88_0_i.r_in    = {r3_out, r2_out, r1_out, r0_out | 4'b0100};
+assign mb88_0_i.irq_n   = ay_iob[5];
+assign mb88_0_i.tc_n    = 1'b1;
+assign mb88_0_i.si_n    = 1'b1;
+assign mb88_0_i.rom_d   = mcu_rom_q;
+assign {r3_out, r2_out, r1_out, r0_out} = mb88_0_o.r_out;
+assign {mcu_oh, mcu_ol} = mb88_0_o.o;
+assign mcu_p        = mb88_0_o.p;
+assign mcu_rom_addr = mb88_0_o.rom_a;
 
-    // MAME's read_r returns the output latch; R0 additionally reads bit2 high ("RAM mode enabled")
-    .r0_port_in (r0_out | 4'b0100),
-    .r1_port_in (r1_out), .r2_port_in (r2_out), .r3_port_in (r3_out),
-    .r0_port_out(r0_out), .r1_port_out(r1_out), .r2_port_out(r2_out), .r3_port_out(r3_out),
-    .k_port_in  (mcu_k),
-    .ol_port_out(mcu_ol), .oh_port_out(mcu_oh),
-    .p_port_out (mcu_p),
-    .o_wr       (),                   // MB88-2026-10-24: fleet mb88 outO strobe, unused here
-
-    .stby_n     (1'b1),
-    .tc_n       (1'b1),
-    .irq_n      (ay_iob[5]),          // /IREQ from AY port B
-    .sc_in_n    (1'b1),
-    .si_n       (1'b1),
-    .sc_out_n   (),
-    .so_n       (),
-    .to_n       (),
-
-    .rom_addr   (mcu_rom_addr),
-    .rom_data   (mcu_rom_q)
-);
-
-// MB8841 internal program ROM (2KB) — index 6
-dpram_dc #(.widthad_a(11), .width_a(8)) mcu_prog
-(
-    .clock_a(clk_12m), .address_a(mcu_rom_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(mcu_rom_q),
-    .clock_b(clk_12m), .address_b(ioctl_addr[10:0]), .data_b(ioctl_data),
-    .wren_b(mcurom_wr), .q_b()
-);
+// MB8841 program ROM (index 6): shared ROM block in the dispatcher
+assign mcu_rom_a = mcu_rom_addr;
+assign mcu_rom_q = mcu_rom_d;
 
 //-------------------------------------------------------- VBlank IRQ ----------------------------------------------------------//
 
-// MAME: standard IM1 interrupt, RST 38h every vblank
-// IRQ fires on vblank rising edge
+// IM1 interrupt (RST 38h) on the vblank rising edge
 reg n_irq = 1'b1;
 reg vblank_last = 0;
 always_ff @(posedge clk_12m) begin
@@ -356,10 +290,9 @@ always_ff @(posedge clk_12m) begin
     end
     else begin
         vblank_last <= video_vblank;
-        // Assert IRQ on rising edge of vblank
         if(video_vblank & ~vblank_last)
             n_irq <= 1'b0;
-        // Auto-clear: Z80 IM1 acknowledges via M1+IORQ
+        // cleared by the acknowledge (M1 + IORQ)
         if(~n_m1 & ~n_iorq)
             n_irq <= 1'b1;
     end
@@ -367,13 +300,12 @@ end
 
 //-------------------------------------------------------- Video Timing --------------------------------------------------------//
 
-// 12 MHz master (XTAL, SP-237 sheet 8B), 6 MHz dot clock.
-// H_TOTAL: the horizontal chain (IC95) counts 4-pixel groups, 96 x 4 = 384 -> 15.625 kHz.
-// V_TOTAL 264 gives 59.19 Hz; not read off the schematic.
+// 12 MHz XTAL (SP-237 sheet 8B), 6 MHz dot clock. H_TOTAL 384: IC95 counts 96 4-pixel groups (15.625 kHz).
+// V_TOTAL 264 (59.19 Hz) is not read off the schematic. #unverified
 localparam int H_TOTAL = 384;
 localparam int V_TOTAL = 264;
 
-// Visible window matches MAME's visarea (0,255, 11,244): 256 across, 234 down.
+// visible 256 x 234 (x 0-255, y 11-244)
 localparam int H_VIS_END  = 256;
 localparam int V_VIS_START = 11;
 localparam int V_VIS_END   = 245;   // exclusive
@@ -397,8 +329,7 @@ always_ff @(posedge clk_12m) begin
     end
 end
 
-// The scanout pipeline is 2 clk_12m cycles deep, so hblank/hsync are delayed to match.
-// This is a latency match, not a window shift; the v axis has no such latency.
+// hblank / hsync delayed 2 clocks to match the scanout pipeline (latency, not a window shift)
 wire video_hblank_raw = (h_cnt >= H_VIS_END[8:0]);
 wire video_hsync_raw  = (h_cnt >= HS_START[8:0]) && (h_cnt < HS_END[8:0]);
 reg [1:0] hblank_sr = 2'b11;
@@ -414,10 +345,8 @@ assign video_vsync  = (v_cnt >= VS_START[8:0]) && (v_cnt < VS_END[8:0]);
 
 //--------------------------------------------------------- Video RAM ----------------------------------------------------------//
 
-// Kangaroo VRAM: 16384 addresses × 32 bits (4 bytes per word, 2 planes × 4 pixels)
-// Split into two 16-bit-wide dpram_dc instances (lo=bytes 0,1  hi=bytes 2,3)
-// Port A = CPU/blitter read-modify-write
-// Port B = video scanout (read-only)
+// VRAM 16K x 32 (4 pixels x 2 planes per word) = 4 pool byte lanes; port A = CPU / blitter
+// read-modify-write, port B = scanout
 
 wire [15:0] vram_lo_qa, vram_hi_qa;   // Port A read data (CPU/blitter side)
 wire [15:0] vram_lo_qb, vram_hi_qb;   // Port B read data (scanout side)
@@ -426,35 +355,35 @@ reg  [15:0] vram_lo_da, vram_hi_da;
 reg         vram_we_a;
 wire [13:0] vram_addr_b;               // Scanout address, from the compositing logic
 
-dpram_dc #(.widthad_a(14), .width_a(16)) vram_lo
-(
-    .clock_a(clk_12m),
-    .address_a(vram_addr_a),
-    .data_a(vram_lo_da),
-    .wren_a(vram_we_a),
-    .q_a(vram_lo_qa),
+assign vl0_i.a_addr = 15'(vram_addr_a);
+assign vl0_i.a_d    = vram_lo_da[7:0];
+assign vl0_i.a_we   = vram_we_a;
+assign vl0_i.b_addr = 15'(vram_addr_b);
+assign vl0_i.b_d    = 8'd0;
+assign vl0_i.b_we   = 1'b0;
+assign vl1_i.a_addr = 15'(vram_addr_a);
+assign vl1_i.a_d    = vram_lo_da[15:8];
+assign vl1_i.a_we   = vram_we_a;
+assign vl1_i.b_addr = 15'(vram_addr_b);
+assign vl1_i.b_d    = 8'd0;
+assign vl1_i.b_we   = 1'b0;
+assign vram_lo_qa = {vl1_o.a_q, vl0_o.a_q};
+assign vram_lo_qb = {vl1_o.b_q, vl0_o.b_q};
 
-    .clock_b(clk_12m),
-    .address_b(vram_addr_b),
-    .data_b(16'd0),
-    .wren_b(1'b0),
-    .q_b(vram_lo_qb)
-);
-
-dpram_dc #(.widthad_a(14), .width_a(16)) vram_hi
-(
-    .clock_a(clk_12m),
-    .address_a(vram_addr_a),
-    .data_a(vram_hi_da),
-    .wren_a(vram_we_a),
-    .q_a(vram_hi_qa),
-
-    .clock_b(clk_12m),
-    .address_b(vram_addr_b),
-    .data_b(16'd0),
-    .wren_b(1'b0),
-    .q_b(vram_hi_qb)
-);
+assign vh0_i.a_addr = 15'(vram_addr_a);
+assign vh0_i.a_d    = vram_hi_da[7:0];
+assign vh0_i.a_we   = vram_we_a;
+assign vh0_i.b_addr = 15'(vram_addr_b);
+assign vh0_i.b_d    = 8'd0;
+assign vh0_i.b_we   = 1'b0;
+assign vh1_i.a_addr = 15'(vram_addr_a);
+assign vh1_i.a_d    = vram_hi_da[15:8];
+assign vh1_i.a_we   = vram_we_a;
+assign vh1_i.b_addr = 15'(vram_addr_b);
+assign vh1_i.b_d    = 8'd0;
+assign vh1_i.b_we   = 1'b0;
+assign vram_hi_qa = {vh1_o.a_q, vh0_o.a_q};
+assign vram_hi_qb = {vh1_o.b_q, vh0_o.b_q};
 
 // Both planes live in the same pixel byte (A upper nibble, B lower), so one read serves both.
 
@@ -463,9 +392,8 @@ dpram_dc #(.widthad_a(14), .width_a(16)) vram_hi
 // A VRAM word is 4 pixels x 8 bits; pixel m sits in byte m. Each pixel byte is
 // {AZ,AR,AG,AB, BZ,BR,BG,BB} — plane A in the upper nibble, plane B in the lower.
 
-// arabian.cpp blit_area(): a source byte pair (offs, offs+0x4000) carries four pixels;
-// pixel m takes bit m and bit m+4 from each plane byte. Pixel value 8 is transparent.
-// blitter[0] bit0 writes plane A, bit2 writes plane B.
+// blit: a source byte pair (offs, offs + $4000) carries four pixels, pixel m = bits m and m+4 of each;
+// pixel value 8 is transparent. blitter[0] bit0 writes plane A, bit2 plane B.
 function [31:0] blit_merge;
     input [31:0] old_word;
     input  [7:0] v1;          // low plane,  gfx $0000-$3FFF
@@ -488,10 +416,8 @@ function [31:0] blit_merge;
     end
 endfunction
 
-// arabian.cpp videoram_w(): the CPU writes four pixels of two bits each, pixel m taking
-// data[m] and data[m+4]. blitter[0] bits 3..0 each enable one bit-pair of the pixel byte:
-// bit3 -> [1:0], bit2 -> [3:2], bit1 -> [5:4], bit0 -> [7:6].
-// MAME's comments on that function do not match the palette bit order; the code does.
+// CPU write: pixel m = {data[m+4], data[m]}; blitter[0] bits 3..0 enable pixel-byte bit pairs
+// [1:0], [3:2], [5:4], [7:6]
 function [31:0] cpu_merge;
     input [31:0] old_word;
     input  [7:0] data;
@@ -515,29 +441,14 @@ endfunction
 //------------------------------------------------------ Blitter GFX ROM -------------------------------------------------------//
 
 // 32KB split into two 16KB planes so a source pair is fetched in a single read.
-wire [7:0]  gfx_lo_q, gfx_hi_q;
 reg  [13:0] gfx_addr;
 
-dpram_dc #(.widthad_a(14), .width_a(8)) gfx_plane_lo
-(
-    .clock_a(clk_12m), .address_a(gfx_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(gfx_lo_q),
-    .clock_b(clk_12m), .address_b(ioctl_addr[13:0]), .data_b(ioctl_data),
-    .wren_b(gfx_cs_i & ~ioctl_addr[14]), .q_b()
-);
-
-dpram_dc #(.widthad_a(14), .width_a(8)) gfx_plane_hi
-(
-    .clock_a(clk_12m), .address_a(gfx_addr), .data_a(8'd0), .wren_a(1'b0), .q_a(gfx_hi_q),
-    .clock_b(clk_12m), .address_b(ioctl_addr[13:0]), .data_b(ioctl_data),
-    .wren_b(gfx_cs_i & ioctl_addr[14]), .q_b()
-);
+assign gfx_a = gfx_addr;
 
 //------------------------------------------------------ DMA Blitter -----------------------------------------------------------//
 
-// One iteration handles four pixels = one VRAM word (destination X is always a multiple
-// of 4), so blit and CPU write are both a read-modify-write of a single word.
-// dpram_dc is altsyncram: 2 clocks address-to-data, so each access is RD, RD2, WR, COMMIT
-// = 4 clocks per four pixels. MAME's loop is X outer, Y inner, source advancing per step.
+// one iteration = one 4-pixel VRAM word, read-modify-write: RD, RD2, WR, COMMIT = 4 clocks
+// (dpram_dc = 2 clocks address to data). X outer, Y inner, source advancing per step.
 
 localparam ST_IDLE        = 4'd0;
 localparam ST_CPU_RD      = 4'd1;
@@ -738,19 +649,12 @@ end
 
 //----------------------------------------------- Pixel Compositing (screen_update) --------------------------------------------//
 
-// arabian.cpp screen_update is a straight bitmap scanout: the pen IS the pixel byte, with
-// the five AY port-A control bits forming the upper half of a 13-bit colour-table index:
-//   pen = ((video_control >> 3) << 8) | pixel_byte
-// There is no scroll, no priority latch and no KOS1 half-pixel mask on this board.
+// straight bitmap scanout: pen = {AY port A[7:3], pixel byte} (13-bit colour-table index);
+// no scroll, priority latch or half-pixel mask
 
-// Scanout address is combinational off the counters; the DPRAM address register and the
-// scan_word latch supply the two pipeline stages, and the slice index is delayed by the
-// same two so it lines up with the word it selects.
-// 180-degree mirror of the bitmap scanout, from the game's own flip (MCU R0.3, driven by
-// the Flip Screen DIP) XORed with the OSD CRT Flip. MAME's screen_update does
-// dest_x = 255-x, dest_y = 255-y on a 256x256 bitmap (arabian.cpp:475-484), which is this
-// XOR. Visible X is 0..255 and visible Y is 11..244 (11+244 = 255), so each range maps
-// exactly onto itself reversed.
+// scanout address is combinational; the slice index is delayed 2 to line up with its word
+// flip = MCU R0.3 (Flip Screen DIP) XOR OSD CRT Flip: an exact 180-degree mirror of the 256 x 256
+// bitmap (visible y 11-244 maps onto itself)
 wire screen_mirror = flip_screen ^ crt_flip;
 wire [7:0] eff_x = h_cnt[7:0] ^ {8{screen_mirror}};
 wire [7:0] eff_y = v_cnt[7:0] ^ {8{screen_mirror}};
@@ -784,9 +688,7 @@ wire bz = pix_byte[3], br = pix_byte[2], bg = pix_byte[1], bb = pix_byte[0];
 
 wire planea = (az | ar | ag | ab) & ena;
 
-// Colour derivation, arabian.cpp palette(). Confirmed against SP-237 sheet 11B: plane B
-// reaches red (BZ/BR via IC118) and green (BG via IC118, BB via IC120) but never blue --
-// the blue driver TR6 is fed only from the plane-A path.
+// colour (SP-237 sheet 11B): plane B reaches red and green but never blue (blue driver TR6 sees plane A only)
 wire rhi   = planea ? ar : (enb ? bz : 1'b0);
 wire rlo   = planea ? ((~arhf & az) ? 1'b0 : ar) : (enb ? br : 1'b0);
 wire ghi   = planea ? ag : (enb ? bb : 1'b0);
@@ -794,8 +696,7 @@ wire glo   = planea ? ((~aghf & az) ? 1'b0 : ag) : (enb ? bg : 1'b0);
 wire bhi   = ab;
 wire bbase = (~abhf & az) ? 1'b0 : ab;
 
-// Two bits per channel through the resistor DAC. MAME's weights match the sheet-11B
-// network: red 1.2K/1.8K = 1.5 (153/102), green 750R/1.2K = 1.6 (156/99), 510R pull-ups.
+// 2 bits per channel through the sheet-11B resistor DAC (red 1.2K/1.8K, green 750R/1.2K, 510R pull-ups):
 //   r = rhi*115 + rlo*77 + 63,  g = ghi*117 + glo*75 + 63,  b = bhi*192 + bbase*63
 wire [7:0] pal_r = ({rhi,rlo}     == 2'b00) ? 8'd0 : ({rhi,rlo}     == 2'b01) ? 8'd140 :
                    ({rhi,rlo}     == 2'b10) ? 8'd178 : 8'd255;
@@ -809,5 +710,12 @@ wire blanked = video_hblank | video_vblank;
 assign video_r = blanked ? 8'd0 : pal_r;
 assign video_g = blanked ? 8'd0 : pal_g;
 assign video_b = blanked ? 8'd0 : pal_b;
+
+
+// pool slot z80_0 inputs
+assign z80_0_i.ce    = cen_3m & ~pause & ~blit_active_w;
+assign z80_0_i.int_n = n_irq;
+assign z80_0_i.nmi_n = n_nmi;
+assign z80_0_i.di    = cpu_Din;
 
 endmodule

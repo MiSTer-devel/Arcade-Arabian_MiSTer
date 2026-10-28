@@ -28,13 +28,16 @@ module Arabian_SND
     output  [7:0] ay_ioa,
     output  [7:0] ay_iob,
 
-    // Audio output
-    output signed [15:0] sound_out
+    output signed [15:0] sound_out,
+
+    // shared AY-3-8910 (pool slot ay_0, rtl/arabian_board.sv)
+    output chip_pool_pkg::ay_i_t   ay_0_i,
+    input  chip_pool_pkg::ayio_o_t ay_0_o
 );
 
 //------------------------------------------------------- Clock Enable --------------------------------------------------------//
 
-// AY-3-8910 runs at MAIN_OSC/4/2 = 1.5 MHz
+// AY-3-8910 at 12 MHz / 8 = 1.5 MHz
 reg [2:0] div = 3'd0;
 always_ff @(posedge clk_12m) begin
     div <= div + 3'd1;
@@ -49,23 +52,17 @@ wire ay_bc1  = ay_addr_wr;
 
 wire [7:0] ayA_raw, ayB_raw, ayC_raw;
 
-jt49_bus #(.COMP(3'b010)) ay_chip
-(
-    .rst_n(reset),
-    .clk(clk_12m),
-    .clk_en(cen_1m5),
-    .bdir(ay_bdir),
-    .bc1(ay_bc1),
-    .din(ay_din),
-    .sel(1'b1),        // No additional clock division
-    .A(ayA_raw),
-    .B(ayB_raw),
-    .C(ayC_raw),
-    .IOA_in(8'h00),
-    .IOA_out(ay_ioa),
-    .IOB_in(8'h00),
-    .IOB_out(ay_iob)
-);
+assign ay_0_i.ce     = cen_1m5;
+assign ay_0_i.bdir   = ay_bdir;
+assign ay_0_i.bc1    = ay_bc1;
+assign ay_0_i.din    = ay_din;
+assign ay_0_i.ioa_in = 8'h00;
+assign ay_0_i.iob_in = 8'h00;
+assign ayA_raw = ay_0_o.a;
+assign ayB_raw = ay_0_o.b;
+assign ayC_raw = ay_0_o.c;
+assign ay_ioa  = ay_0_o.ioa_out;
+assign ay_iob  = ay_0_o.iob_out;
 
 //----------------------------------------------------- Final Audio Output -----------------------------------------------------//
 

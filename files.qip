@@ -1,25 +1,29 @@
 set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
 
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/chip_pool_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_pool_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE Arcade-Arabian.sv
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/Arabian.sv
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/Arabian_CPU.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/arabian_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/arabian/Arabian_CPU.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/artwork.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_resample.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/png_decode.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/inflate.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_xclk.sv
 
 set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
 
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/Arabian_SND.sv
-set_global_assignment -name QIP_FILE rtl/sound/v_sound.qip
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/arabian/Arabian_SND.sv
+set_global_assignment -name QIP_FILE rtl/sound/jt49/hdl/jt49.qip
 
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/nvram.v
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v
-# CTL-2026-10-25: shared input library (controllers.sv v2)
+# shared input library (controllers.sv)
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/mister_custom/controllers.sv
 
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cpu/mb88_sv/mb88_core.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cpu/mb88_sv/mb88.sv
 
-# DPRAMSV-2026-10-25: VHDL dpram_dc replaced by the SystemVerilog one (same ports/generics + byteena); original:
-# set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/dpram_dc.sv
-set_global_assignment -name VHDL_FILE rtl/ram_rom/spram.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/rom_loader.sv
