@@ -46,19 +46,17 @@ assign HDMI_BOB_DEINT = 0;
 wire signed [15:0] audio_l, audio_r;
 assign AUDIO_L = pause_cpu ? 16'd0 : audio_l;
 assign AUDIO_R = pause_cpu ? 16'd0 : audio_r;
-assign AUDIO_S = 1;   // signed
-assign AUDIO_MIX = 0; // no mix, true stereo
+assign AUDIO_S = 1;
+assign AUDIO_MIX = 0;
 
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign LED_USER  = ioctl_download;
 assign BUTTONS = 0;
 
-///////////////////////////////////////////////////
-
 wire [1:0] ar = status[14:13];
 
-wire        art_fb;                // artwork framebuffer on HDMI: square canvas pixels
+wire        art_fb;
 wire        art_ioctl_wait, art_avail;
 wire [11:0] art_cw, art_ch;
 assign VIDEO_ARX = (!ar) ? (art_fb ? art_cw : status[12] ? 12'd4 : 12'd3) : (ar - 1'd1);
@@ -109,8 +107,8 @@ wire        ioctl_upload;
 wire        ioctl_upload_req;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
-wire [26:0] ioctl_addr27;                     // hps_io's full address: the artwork download can pass 32 MB
-wire [24:0] ioctl_addr = ioctl_addr27[24:0];  // every other ioctl user
+wire [26:0] ioctl_addr27;
+wire [24:0] ioctl_addr = ioctl_addr27[24:0];
 wire  [7:0] ioctl_dout;
 wire  [7:0] ioctl_din;
 
@@ -151,8 +149,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ps2_key(ps2_key)
 );
 
-////////////////////   CLOCKS   ///////////////////
-wire CLK_40M;                       // video back end + artwork (same VCO as CLK_12M)
+wire CLK_40M;
 wire CLK_12M;
 wire locked;
 
@@ -169,12 +166,8 @@ assign CLK_VIDEO = CLK_40M;
 
 wire reset = RESET | status[0] | buttons[1] | ioctl_download;
 
-///////////////////         Keyboard           //////////////////
-
-// kb: [0] up [1] down [2] left [3] right [4] Ctrl [5] Alt [6] 1 [7] 2 [8] 5 [9] 6 [10] 9 [11] T [12] P
-// kbx: [0] F2 service switch, [1] left Shift (Draw Fast, not wired to the board)
 /* verilator lint_off UNUSED */
-wire [12:0] kb;                     // Alt and T are not used on this board
+wire [12:0] kb;
 wire  [1:0] kbx;
 /* verilator lint_on UNUSED */
 wire btn_up         = kb[0];
@@ -190,38 +183,28 @@ wire btn_pause      = kb[12];
 wire btn_service    = kb[10];
 wire btn_service_sw = kbx[0];
 
-//////////////////  Arcade Buttons/Interfaces   ///////////////////////////
-
-//Player 1 — COM1 (8-way) and COM2 (one button)
 wire m_up1      = btn_up        | joystick_0[3];
 wire m_down1    = btn_down      | joystick_0[2];
 wire m_left1    = btn_left      | joystick_0[1];
 wire m_right1   = btn_right     | joystick_0[0];
 wire m_btn1     = btn_fire      | joystick_0[4];
 
-//Player 2 — COM3/COM4, the cocktail set
 wire m_up2      = joystick_1[3];
 wire m_down2    = joystick_1[2];
 wire m_left2    = joystick_1[1];
 wire m_right2   = joystick_1[0];
 wire m_btn2     = joystick_1[4];
 
-//Start/Coin
-// Bit order follows the MRA <buttons names=".."> list, starting at joystick bit 4:
-// 4 Kick · 5 Coin · 6 Start 1P · 7 Start 2P · 8 Pause
 wire m_coin1    = btn_coin1     | joystick_0[5];
 wire m_coin2    = btn_coin2     | joystick_1[5];
 wire m_start1   = btn_1p_start  | joystick_0[6];
 wire m_start2   = btn_2p_start  | joystick_0[7];
 wire m_pause    = btn_pause     | joystick_0[8];
 
-// service inputs
-wire m_service    = btn_service;      // AUX-S (key 9) -> COM0 bit3
-wire m_service_sw = btn_service_sw;   // service switch (F2) -> IN0 bit2
+wire m_service    = btn_service;
+wire m_service_sw = btn_service_sw;
 
-// PAUSE SYSTEM
 wire pause_cpu;
-// keyboard (see Keyboard above); held keys keep tracking while paused
 ctl_keyboard #(.NX(2), .NXO(2), .XKEYS({24'h10_12_01, 24'h10_06_00})) u_kb(.clk(CLK_12M), .ps2_key(ps2_key),
 	.pause(pause_cpu), .kb(kb), .kbx(kbx));
 wire [23:0] rgb_out;
@@ -234,17 +217,13 @@ pause #(8,8,8,10) pause
 	.options(~status[26:25])
 );
 
-///////////////                 Video                  ////////////////
-
 wire hblank, vblank;
 wire hs, vs;
 wire [7:0] r, g, b;
-wire bd_ce;                        // board pixel enable (CLK_12M)
-wire ce_pix;                       // CLK_40M pixel enable (art_xclk)
+wire bd_ce;
+wire ce_pix;
 
-// video back end on CLK_40M: art_xclk -> artwork -> screen_rotate / arcade_video. The board, pause and hiscore stay on
-// CLK_12M; art_xclk moves the pixels and the artwork download across (related clocks: plain timed register paths).
-wire  [7:0] av_r, av_g, av_b;      // artwork output: the board picture one pixel late, artwork applied
+wire  [7:0] av_r, av_g, av_b;
 wire        av_hs, av_vs, av_hbl, av_vbl;
 wire [27:0] v_px;
 wire        a_wr;
@@ -259,8 +238,6 @@ art_xclk #(.IDX(8'd5), .VW(28)) art_xclk
 	.ioctl_wait(art_ioctl_wait), .a_wr(a_wr), .a_addr(a_addr), .a_dout(a_dout), .art_wait(art_wait)
 );
 
-// MAME artwork (OSD Game Options page): native composite on the core video (one pixel late), full view through the
-// DDR3 framebuffer on HDMI
 wire        art_run, art_ddr;
 wire [31:0] art_fb_base;
 wire  [7:0] art_burstcnt, art_be;
@@ -284,11 +261,9 @@ artwork #(.IDX(8'd5)) artwork
 	.DDRAM_DOUT(DDRAM_DOUT), .DDRAM_DOUT_READY(DDRAM_DOUT_READY), .DDRAM_RD(art_rd),
 	.DDRAM_DIN(art_din), .DDRAM_BE(art_be), .DDRAM_WE(art_we)
 );
-// Orientation Horz (rotated monitor): the artwork turns its own view, so it keeps the framebuffer
 assign art_fb = art_run & ~direct_video;
 
-// one pixel per source pixel, 256 across
-wire rotate_ccw = 1;  // Arabian is ROT270 (CCW)
+wire rotate_ccw = 1;
 wire no_rotate = status[12] | direct_video;
 wire flip = status[11] | ~no_rotate;
 wire        sr_fb_en, sr_clk, sr_rd, sr_we;
@@ -308,7 +283,6 @@ screen_rotate screen_rotate
 	.DDRAM_BE(sr_be), .DDRAM_WE(sr_we), .DDRAM_RD(sr_rd)
 );
 
-// the artwork takes the framebuffer while it draws, and DDR3 while it loads or draws
 assign FB_EN     = art_fb | sr_fb_en;
 assign FB_FORMAT = art_fb ? 5'b00110  : sr_fb_format;
 assign FB_WIDTH  = art_fb ? art_cw    : sr_fb_w;
@@ -338,27 +312,23 @@ arcade_video #(256,24) arcade_video
 	.fx(status[17:15])
 );
 
-// DIP switches arrive from the OSD via ioctl index 254, not status.
 reg [7:0] dip_sw[8] = '{8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00};
 always @(posedge CLK_12M) begin
 	if (ioctl_wr && (ioctl_index == 8'd254) && !ioctl_addr[24:3])
 		dip_sw[ioctl_addr[2:0]] <= ioctl_dout;
 end
-wire [7:0] sw1 = dip_sw[0];        // SW1, read directly by the Z80 at $C200
-wire [3:0] sw2 = dip_sw[1][3:0];   // SW2, reaches the CPU through the MB8841 COM5 scan
+wire [7:0] sw1 = dip_sw[0];
+wire [3:0] sw2 = dip_sw[1][3:0];
 
-//Instantiate Arabian top-level game module
 arabian_dispatcher arabian_inst
 (
-	.reset(~reset),       // MiSTer reset is active-high; invert for active-low game modules
+	.reset(~reset),
 
 	.clk_12m(CLK_12M),
 
-	// Read directly by the Z80 at $C000 / $C200
 	.in0({m_service_sw, m_coin2, m_coin1}),
 	.dsw1(sw1),
 
-	// Scanned by the MB8841. COM0 bit0 is an unused active-low input, so it reads 1.
 	.com0({m_service, m_start2, m_start1, 1'b1}),
 	.com1({m_down1, m_up1, m_left1, m_right1}),
 	.com2({3'b000, m_btn1}),
@@ -394,8 +364,6 @@ arabian_dispatcher arabian_inst
 	.hs_write(hs_write_enable)
 );
 
-// HISCORE SYSTEM — config = MRA index 3, dump = index 4. Score data lives in the MB8841
-// shared RAM, so hs_access borrows the MCU's port while the module has the CPU paused.
 wire [15:0] hs_address;
 wire  [7:0] hs_data_in;
 wire  [7:0] hs_data_out;
